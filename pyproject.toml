@@ -9,6 +9,7 @@ packages = [{ include = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
+phyelds = "^5.0.0"
 
 
 [build-system]
