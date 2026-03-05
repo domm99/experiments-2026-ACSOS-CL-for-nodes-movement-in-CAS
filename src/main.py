@@ -1,13 +1,13 @@
 import random
 from phyelds.calculus import aggregate
-from phyelds.simulator import Simulator
+from CustomDeployments import multi_grid
+from phyelds.simulator import Simulator, Node
 from phyelds.libraries.time import local_time
 from phyelds.libraries.collect import count_nodes
 from phyelds.libraries.spreading import broadcast
 from phyelds.simulator.render import RenderMonitor
 from phyelds.libraries.spreading import distance_to
 from CustomRenderMonitor import CustomRenderMonitor
-from CustomDeployments import multi_gaussian, multi_grid
 from phyelds.simulator.deployments import deformed_lattice
 from phyelds.libraries.distances import neighbors_distances
 from phyelds.libraries.leader_election import elect_leaders
@@ -31,6 +31,13 @@ def main():
     return area_value
 
 
+def move_node(simulator: Simulator, time_delta: float, node: Node, **kwargs):
+
+    x, y = node.position
+    node.update(new_position = (x + 7, y + 7))
+    simulator.schedule_event(time_delta, move_node, simulator, time_delta, node, **kwargs)
+
+
 if __name__ == '__main__':
 
     random.seed(42)
@@ -43,6 +50,10 @@ if __name__ == '__main__':
     # schedule the main function
     for node in simulator.environment.nodes.values():
         simulator.schedule_event(random.random() / 100, aggregate_program_runner, simulator, 1.1, node, main)
+
+    moving_node = list(simulator.environment.nodes.values())[0]
+    simulator.schedule_event(0.1, move_node, simulator, 10.0, moving_node)
+
     # render
     CustomRenderMonitor(
         simulator,
