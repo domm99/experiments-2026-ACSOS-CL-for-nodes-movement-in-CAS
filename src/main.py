@@ -10,7 +10,8 @@ from phyelds.libraries.spreading import distance_to
 from CustomRenderMonitor import CustomRenderMonitor
 from phyelds.simulator.deployments import deformed_lattice
 from phyelds.libraries.distances import neighbors_distances
-from phyelds.libraries.leader_election import elect_leaders
+# from phyelds.libraries.leader_election import elect_leaders
+from CustomLeaderElection import elect_leaders
 from CustomDrawings import CustomDrawNodes, CustomDrawEdges
 from phyelds.simulator.runner import aggregate_program_runner
 from phyelds.simulator.neighborhood import radius_neighborhood
@@ -24,18 +25,17 @@ def main():
     :return:
     """
     distances = neighbors_distances()
-    leader = elect_leaders(4, distances)
-    potential = distance_to(leader, distances)
-    nodes = count_nodes(potential)
-    area_value = broadcast(leader, nodes, distances)
-    return area_value
+    (am_i_leader, leader_id) = elect_leaders(20, distances)
+    # potential = distance_to(am_i_leader, distances)
+    # nodes = count_nodes(potential)
+    # area_value = broadcast(leader, nodes, distances)
+    return leader_id
 
 
-def move_node(simulator: Simulator, time_delta: float, node: Node, **kwargs):
-
-    x, y = node.position
-    node.update(new_position = (x + 7, y + 7))
-    simulator.schedule_event(time_delta, move_node, simulator, time_delta, node, **kwargs)
+def move_node(simulator: Simulator, time_delta: float, node: Node, i: int, **kwargs):
+    possible_positions = [(0,0), (0.5, 10.5), (10.5, 10.5), (10.5, 0.5)]
+    node.update(new_position = possible_positions[i])
+    simulator.schedule_event(time_delta, move_node, simulator, time_delta, node, (i+1)%4, **kwargs)
 
 
 if __name__ == '__main__':
@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
     simulator = Simulator()
     # deformed lattice
-    simulator.environment.set_neighborhood_function(radius_neighborhood(1.15))
+    simulator.environment.set_neighborhood_function(radius_neighborhood(1.12))
     multi_grid(simulator, [(0, 0, 5, 5, 1), (0, 10, 5, 5, 1), (10, 0, 5, 5, 1), (10, 10, 5, 5, 1)], 42)
 
     # schedule the main function
@@ -52,7 +52,7 @@ if __name__ == '__main__':
         simulator.schedule_event(random.random() / 100, aggregate_program_runner, simulator, 1.1, node, main)
 
     moving_node = list(simulator.environment.nodes.values())[0]
-    simulator.schedule_event(0.1, move_node, simulator, 10.0, moving_node)
+    simulator.schedule_event(0.1, move_node, simulator, 10.0, moving_node, 1)
 
     # render
     CustomRenderMonitor(
@@ -64,4 +64,4 @@ if __name__ == '__main__':
             dt=0.1
         )
     )
-    simulator.run(200)
+    simulator.run(100)
