@@ -39,13 +39,7 @@ if __name__ == '__main__':
     # deformed lattice
     simulator.environment.set_neighborhood_function(radius_neighborhood(1.15))
     multi_grid(simulator, [(0, 0, 5, 5, 1), (0, 10, 5, 5, 1), (10, 0, 5, 5, 1), (10, 10, 5, 5, 1)], 42)
-    # put source
-    for node in simulator.environment.nodes.values():
-        node.data = {"source": False, "target": False}
-    # put a source in the first node
-    simulator.environment.node_list()[0].data["source"] = True
-    target = simulator.environment.node_list()[-1]
-    target.data["target"] = True
+
     # schedule the main function
     for node in simulator.environment.nodes.values():
         simulator.schedule_event(random.random() / 100, aggregate_program_runner, simulator, 1.1, node, main)
