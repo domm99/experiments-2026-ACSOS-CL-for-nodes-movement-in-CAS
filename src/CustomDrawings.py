@@ -5,6 +5,7 @@ from typing import Literal, Optional, Any, Annotated, Tuple, List
 from pydantic import BaseModel, Field, BeforeValidator, SerializeAsAny
 from phyelds.simulator import Environment
 from phyelds.simulator.effects import Link
+import matplotlib.pyplot as plt
 
 class CustomDrawEdges(Effect):
     """
@@ -56,7 +57,11 @@ class CustomDrawNodes(Effect):
                 node.data.get(self.color_from, "blue")
                 for node in environment.nodes.values()
             ]
-            ax.scatter(x, y, c=colors, zorder=self.z_order, s=150)
+            cmap = plt.get_cmap('tab20')
+            unique_values = sorted(list(set(colors)))
+            color_mapping = {val: cmap(i % cmap.N) for i, val in enumerate(unique_values)}
+            node_colors = [color_mapping[val] for val in colors]
+            ax.scatter(x, y, c=node_colors, zorder=self.z_order, s=150)
         else:
             ax.scatter(x, y, c="blue", zorder=self.z_order, s=150)
 
