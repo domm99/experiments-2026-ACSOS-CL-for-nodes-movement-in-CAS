@@ -20,7 +20,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
     simulator = Simulator()
     # deformed lattice
     simulator.environment.set_neighborhood_function(radius_neighborhood(40))
-    multi_grid(simulator, [(0, 0, 5, 5, 1), (0, 30, 5, 5, 1), (30, 0, 5, 5, 1), (30, 30, 5, 5, 1)], 42)
+    mapping_area_nodes = multi_grid(simulator, [(0, 0, 5, 5, 1), (0, 30, 5, 5, 1), (30, 0, 5, 5, 1), (30, 30, 5, 5, 1)], 42)
 
     train_data, test_data = download_dataset(dataset_name)
 
