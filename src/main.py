@@ -9,6 +9,7 @@ from CustomRenderMonitor import CustomRenderMonitor
 from CustomDrawings import CustomDrawNodes, CustomDrawEdges
 from phyelds.simulator.runner import aggregate_program_runner
 from phyelds.simulator.neighborhood import radius_neighborhood
+from src.TestSetEvaluationMonitor import TestSetEvalMonitor
 from phyelds.simulator.effects import DrawNodes, DrawEdges, RenderConfig, RenderMode
 from ProFed import download_dataset, split_train_validation, partition_to_subregions
 
@@ -140,6 +141,20 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
             dt=0.1
         )
     )
+
+    # Exporting training data
+
+    config = ExporterConfig(
+        'data/',
+        f'experiment_seed-{seed}_subareas-{number_subregions}_dataset-{dataset_name}_partitioning-{partitioning}',
+        ['TrainLoss', 'ValidationLoss', 'ValidationAccuracy'],
+        ['mean', 'std', 'min', 'max'],
+        3,
+    )
+    simulator.schedule_event(1.0, csv_exporter, simulator, 1.0, config)
+    simulator.add_monitor(TestSetEvalMonitor(simulator, device, dataset_name))
+
+    # Run simulation
     simulator.run(SIMULATION_STEPS)
 
 if __name__ == '__main__':
