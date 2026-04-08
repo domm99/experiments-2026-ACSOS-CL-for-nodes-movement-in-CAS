@@ -44,7 +44,7 @@ def device(data, initial_model_weights, learning_device, seed, number_of_subarea
     potential = distance_to(am_i_leader, distances)
     models = collect_with(potential, [trained_model], lambda x, y: x + y)
     aggregated_model = average_weights(models, [1.0 for _ in models])
-    area_model = broadcast(leader, aggregated_model, distances)
+    area_model = broadcast(am_i_leader, aggregated_model, distances)
 
     if tick % impulsesEvery == 0:
         avg = average_weights([trained_model, area_model], [0.1, 0.9])
