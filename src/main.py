@@ -62,8 +62,6 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
     mapping_area_nodes = multi_grid(simulator, [(0, 0, 7, 6, 2), (0, 30, 7, 6, 2), (30, 0, 7, 6, 2), (30, 30, 7, 6, 2)], 42)
     nodes_per_subarea = len(mapping_area_nodes[0])
 
-    print(f'Nodes per subarea: {nodes_per_subarea}')
-
     ## Data split and distribution
     train_data, test_data = download_dataset(dataset_name)
     train_data, validation_data = split_train_validation(train_data, 0.7)
@@ -99,11 +97,9 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
             nodes_per_subarea + (0 if area_id == 0 else 1),
         )
         all_data[area_id] = (train_mapping_device_data, test_mapping_device_data)
-        print(f'Area: {area_id} -- Number of devices: {len(train_mapping_device_data)} -- ids {train_mapping_device_data.keys()}')
 
     device_data = {}
 
-    print(all_data.keys())
     for area_id in mapping_area_nodes.keys():
         ids = mapping_area_nodes[area_id]
         for index in ids:
@@ -168,7 +164,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
         3,
     )
     simulator.schedule_event(1.0, csv_exporter, simulator, 1.0, config)
-    simulator.add_monitor(TestSetEvalMonitor(simulator, device, dataset_name))
+    simulator.add_monitor(TestSetEvalMonitor(simulator, learning_device, dataset_name))
 
     # Run simulation
     simulator.run(SIMULATION_STEPS)
