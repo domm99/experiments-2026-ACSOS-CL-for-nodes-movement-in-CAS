@@ -12,20 +12,28 @@ from phyelds.simulator.neighborhood import radius_neighborhood
 from phyelds.simulator.effects import DrawNodes, DrawEdges, RenderConfig, RenderMode
 from ProFed import download_dataset, split_train_validation, partition_to_subregions
 
+
+SIMULATION_STEPS = 1
+
+
 @dataclass
 class DeviceData:
+    dataset_name: str
     train_data: Subset
     test_data: Subset
     other_data: list[tuple[Subset, Subset]]
+
 
 def seed_everything(seed: int) -> None:
     random.seed(seed)
     # TODO - seed also torch
 
+
 def move_node(simulator: Simulator, time_delta: float, node: Node, i: int, **kwargs) -> None:
     possible_positions = [(0,0), (30.5, 0.5), (30.5, 30.5), (0.5, 30.5)]
     node.update(new_position = possible_positions[i])
     simulator.schedule_event(time_delta, move_node, simulator, time_delta, node, (i+1)%4, **kwargs)
+
 
 def run_simulation(dataset_name: str, partitioning_method: str, number_of_regions: int, seed: int = 42) -> None:
     seed_everything(seed)
@@ -96,7 +104,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
             else:
                 other_data = None
 
-            device_data[index] = DeviceData(train_data, test_data, other_data)
+            device_data[index] = DeviceData(dataset_name, train_data, test_data, other_data)
 
     initial_model_weights = initialize_model(dataset_name).state_dict()
 
@@ -112,6 +120,10 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
             device,
             data=device_data[node.id],
             initial_model_weights=initial_model_weights,
+            learning_device=device,
+            seed=seed,
+            number_of_subareas=number_of_subareas,
+            partitioning=partitioning_method,
             moving=moving,
         )
 
@@ -128,7 +140,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
             dt=0.1
         )
     )
-    simulator.run(1)
+    simulator.run(SIMULATION_STEPS)
 
 if __name__ == '__main__':
 
