@@ -128,7 +128,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
         )
 
     moving_node = list(simulator.environment.nodes.values())[0]
-    simulator.schedule_event(0.1, move_node, simulator, 30.0, moving_node, 1)
+    #simulator.schedule_event(0.1, move_node, simulator, 30.0, moving_node, 1)
 
     # render
     CustomRenderMonitor(
