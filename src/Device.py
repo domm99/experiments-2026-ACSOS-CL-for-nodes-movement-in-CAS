@@ -52,10 +52,10 @@ def device(data, initial_model_weights, learning_device, seed, number_of_subarea
     else:
         set_value((trained_model, tick + 1))
 
-    if tick == SIMULATION_STEPS:
-        store('final_model', trained_model)
-        store('test_data', test_data)
-        store('hyperparams', hyperparams)
+
+    store('final_model', trained_model)
+    store('test_data', test_data)
+    store('hyperparams', hyperparams)
 
     return leader_id
 
