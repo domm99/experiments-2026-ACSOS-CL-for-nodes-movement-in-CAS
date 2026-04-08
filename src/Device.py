@@ -1,12 +1,12 @@
 from src import SIMULATION_STEPS
 from phyelds.calculus import aggregate
-from phyelds.libraries.device import local_id
 from phyelds.libraries.time import local_time
 from CustomLeaderElection import elect_leaders
 from phyelds.libraries.spreading import broadcast
 from phyelds.libraries.collect import collect_with
 from phyelds.simulator.render import RenderMonitor
 from phyelds.libraries.spreading import distance_to
+from phyelds.libraries.device import local_id, store
 from phyelds.simulator.deployments import deformed_lattice
 from phyelds.calculus import aggregate, neighbors, remember
 from phyelds.libraries.distances import neighbors_distances
@@ -36,7 +36,7 @@ def device(data, initial_model_weights, learning_device, seed, number_of_subarea
     trained_model, training_loss = local_training(local_model, 2, train_data, 128, learning_device)
     validation_accuracy, validation_loss = model_evaluation(trained_model, val_data, 128, learning_device, dataset_name)
 
-    log(train_loss, validation_loss, validation_accuracy)  # Metrics logging
+    log(training_loss, validation_loss, validation_accuracy)  # Metrics logging
 
     ### SCR
     distances = neighbors_distances()
@@ -53,7 +53,7 @@ def device(data, initial_model_weights, learning_device, seed, number_of_subarea
         set_value((trained_model, tick + 1))
 
     if tick == SIMULATION_STEPS:
-        store('final_model', trained_modeli)
+        store('final_model', trained_model)
         store('test_data', test_data)
         store('hyperparams', hyperparams)
 
