@@ -3,6 +3,7 @@ from Device import device
 from dataclasses import dataclass
 from torch.utils.data import Subset
 from CustomDeployments import multi_grid
+from src.learning import initialize_model
 from phyelds.simulator import Simulator, Node
 from CustomRenderMonitor import CustomRenderMonitor
 from CustomDrawings import CustomDrawNodes, CustomDrawEdges
@@ -97,6 +98,8 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
 
             device_data[index] = DeviceData(train_data, test_data, other_data)
 
+    initial_model_weights = initialize_model(dataset_name).state_dict()
+
     # schedule the main function
     for node in simulator.environment.nodes.values():
         moving = node.id == 0
@@ -108,6 +111,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
             node,
             device,
             data=device_data[node.id],
+            initial_model_weights=initial_model_weights,
             moving=moving,
         )
 
