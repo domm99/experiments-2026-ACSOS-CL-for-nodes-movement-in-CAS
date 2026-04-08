@@ -1,7 +1,7 @@
 import copy
 import torch
 from torch import nn
-from learning.model import CnnEMNIST
+from src.learning.models import CnnEMNIST
 from torch.utils.data import DataLoader, Dataset
 
 def initialize_model(dataset_name):

@@ -1,5 +1,6 @@
 import random
-from Device import device
+from src.Device import device
+from src import SIMULATION_STEPS
 from dataclasses import dataclass
 from torch.utils.data import Subset
 from CustomDeployments import multi_grid
@@ -7,14 +8,12 @@ from src.learning import initialize_model
 from phyelds.simulator import Simulator, Node
 from CustomRenderMonitor import CustomRenderMonitor
 from CustomDrawings import CustomDrawNodes, CustomDrawEdges
+from src.TestSetEvaluationMonitor import TestSetEvalMonitor
 from phyelds.simulator.runner import aggregate_program_runner
 from phyelds.simulator.neighborhood import radius_neighborhood
-from src.TestSetEvaluationMonitor import TestSetEvalMonitor
+from phyelds.simulator.exporter import csv_exporter, ExporterConfig
 from phyelds.simulator.effects import DrawNodes, DrawEdges, RenderConfig, RenderMode
 from ProFed import download_dataset, split_train_validation, partition_to_subregions
-
-
-SIMULATION_STEPS = 40
 
 
 @dataclass

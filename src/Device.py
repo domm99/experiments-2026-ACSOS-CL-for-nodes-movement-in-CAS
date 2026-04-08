@@ -1,4 +1,4 @@
-from src.main import SIMULATION_STEPS
+from src import SIMULATION_STEPS
 from phyelds.calculus import aggregate
 from phyelds.libraries.device import local_id
 from phyelds.libraries.time import local_time
