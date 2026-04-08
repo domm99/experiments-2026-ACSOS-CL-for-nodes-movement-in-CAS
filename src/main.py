@@ -13,7 +13,7 @@ from phyelds.simulator.effects import DrawNodes, DrawEdges, RenderConfig, Render
 from ProFed import download_dataset, split_train_validation, partition_to_subregions
 
 
-SIMULATION_STEPS = 1
+SIMULATION_STEPS = 40
 
 
 @dataclass
