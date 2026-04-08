@@ -10,8 +10,7 @@ from phyelds.libraries.spreading import distance_to
 from phyelds.simulator.deployments import deformed_lattice
 from phyelds.calculus import aggregate, neighbors, remember
 from phyelds.libraries.distances import neighbors_distances
-from src.learning import local_training, model_evaluation, average_weights
-
+from src.learning import local_training, model_evaluation, average_weights, initialize_model
 
 impulsesEvery = 5
 
@@ -32,7 +31,9 @@ def device(data, initial_model_weights, learning_device, seed, number_of_subarea
     set_value, stored_info = remember((initial_model_weights, 0))
     local_model_weights, tick = stored_info
 
-    trained_model, training_loss = local_training(local_model_weights, 2, train_data, 128, learning_device)
+    local_model = load_from_weights(local_model_weights, dataset_name)
+
+    trained_model, training_loss = local_training(local_model, 2, train_data, 128, learning_device)
     validation_accuracy, validation_loss = model_evaluation(trained_model, val_data, 128, learning_device, dataset_name)
 
     log(train_loss, validation_loss, validation_accuracy)  # Metrics logging
@@ -63,3 +64,9 @@ def log(train_loss, validation_loss, validation_accuracy):
     store('TrainLoss', train_loss)
     store('ValidationLoss', validation_loss)
     store('ValidationAccuracy', validation_accuracy)
+
+
+def load_from_weights(weights, dataset_name):
+    model = initialize_model(dataset_name)
+    model.load_state_dict(weights)
+    return model

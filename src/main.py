@@ -26,6 +26,15 @@ class DeviceData:
     other_data: list[tuple[Subset, Subset]]
 
 
+def get_current_learning_device():
+    learning_device: str = 'cpu'
+    if torch.accelerator.is_available():
+        current_accelerator = torch.accelerator.current_accelerator()
+        if current_accelerator is not None:
+            learning_device = current_accelerator.type
+    return learning_device
+
+
 def seed_everything(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -45,7 +54,7 @@ def move_node(simulator: Simulator, time_delta: float, node: Node, i: int, **kwa
 
 def run_simulation(dataset_name: str, partitioning_method: str, number_of_regions: int, seed: int = 42) -> None:
     seed_everything(seed)
-
+    learning_device = get_current_learning_device()
     simulator = Simulator()
 
     ## Nodes deployment
@@ -128,7 +137,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
             device,
             data=device_data[node.id],
             initial_model_weights=initial_model_weights,
-            learning_device=device,
+            learning_device=learning_device,
             seed=seed,
             number_of_subareas=number_of_regions,
             partitioning=partitioning_method,
