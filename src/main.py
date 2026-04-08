@@ -122,7 +122,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
             initial_model_weights=initial_model_weights,
             learning_device=device,
             seed=seed,
-            number_of_subareas=number_of_subareas,
+            number_of_subareas=number_of_regions,
             partitioning=partitioning_method,
             moving=moving,
         )
@@ -145,7 +145,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
 
     config = ExporterConfig(
         'data/',
-        f'experiment_seed-{seed}_subareas-{number_subregions}_dataset-{dataset_name}_partitioning-{partitioning}',
+        f'experiment_seed-{seed}_subareas-{number_of_regions}_dataset-{dataset_name}_partitioning-{partitioning_method}',
         ['TrainLoss', 'ValidationLoss', 'ValidationAccuracy'],
         ['mean', 'std', 'min', 'max'],
         3,
