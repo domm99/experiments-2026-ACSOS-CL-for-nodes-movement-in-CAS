@@ -2,18 +2,19 @@ import torch
 import random
 import numpy as np
 from src.Device import device
-from src import SIMULATION_STEPS
 from dataclasses import dataclass
 from torch.utils.data import Subset
 from CustomDeployments import multi_grid
 from src.learning import initialize_model
 from phyelds.simulator import Simulator, Node
+from src import SIMULATION_STEPS, CHANGE_AREA_EACH
 from CustomRenderMonitor import CustomRenderMonitor
 from CustomDrawings import CustomDrawNodes, CustomDrawEdges
 from src.TestSetEvaluationMonitor import TestSetEvalMonitor
 from phyelds.simulator.runner import aggregate_program_runner
 from phyelds.simulator.neighborhood import radius_neighborhood
 from phyelds.simulator.exporter import csv_exporter, ExporterConfig
+from src.custom_evaluation_exporter import subareas_evaluation_csv_exporter
 from phyelds.simulator.effects import DrawNodes, DrawEdges, RenderConfig, RenderMode
 from ProFed import download_dataset, split_train_validation, partition_to_subregions
 
@@ -21,9 +22,9 @@ from ProFed import download_dataset, split_train_validation, partition_to_subreg
 @dataclass
 class DeviceData:
     dataset_name: str
-    train_data: Subset
-    test_data: Subset
-    other_data: list[tuple[Subset, Subset]]
+    train_data: list[Subset]
+    val_data: list[Subset]
+    test_data: list[Subset]
 
 
 def get_current_learning_device():
@@ -59,7 +60,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
 
     ## Nodes deployment
     simulator.environment.set_neighborhood_function(radius_neighborhood(40))
-    mapping_area_nodes = multi_grid(simulator, [(0, 0, 7, 6, 2), (0, 30, 7, 6, 2), (30, 0, 7, 6, 2), (30, 30, 7, 6, 2)], 42)
+    mapping_area_nodes = multi_grid(simulator, [(0, 0, 7, 6, 2), (30, 0, 7, 6, 2), (30, 30, 7, 6, 2), (0, 30, 7, 6, 2)], 42)
     nodes_per_subarea = len(mapping_area_nodes[0])
 
     ## Data split and distribution
@@ -115,9 +116,14 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
                     next_test_data = test_data_mapping[nodes_per_subarea]
                     other_data.append((next_train_data[0], next_train_data[1], next_test_data[0]))
             else:
-                other_data = None
+                other_data = []
 
-            device_data[index] = DeviceData(dataset_name, train_data, test_data, other_data)
+            train, val = train_data
+            all_train = [train] + [o[0] for o in other_data]
+            all_val = [val] + [o[1] for o in other_data]
+            all_test = [test_data] + [o[2] for o in other_data]
+
+            device_data[index] = DeviceData(dataset_name, all_train, all_val, all_test)
 
     initial_model_weights = initialize_model(dataset_name).state_dict()
 
@@ -141,7 +147,7 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
         )
 
     moving_node = list(simulator.environment.nodes.values())[0]
-    #simulator.schedule_event(0.1, move_node, simulator, 30.0, moving_node, 1)
+    simulator.schedule_event(0.1, move_node, simulator, CHANGE_AREA_EACH, moving_node, 1)
 
     # render
     CustomRenderMonitor(
@@ -159,12 +165,14 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
     config = ExporterConfig(
         'data/',
         f'experiment_seed-{seed}_subareas-{number_of_regions}_dataset-{dataset_name}_partitioning-{partitioning_method}',
-        ['TrainLoss', 'ValidationLoss', 'ValidationAccuracy'],
-        ['mean', 'std', 'min', 'max'],
+        [],
+        [],
         3,
     )
-    simulator.schedule_event(1.0, csv_exporter, simulator, 1.0, config)
-    simulator.add_monitor(TestSetEvalMonitor(simulator, learning_device, dataset_name))
+
+    #simulator.schedule_event(1.0, csv_exporter, simulator, 1.0, config)
+    simulator.schedule_event(1.0, subareas_evaluation_csv_exporter, simulator, 1.0, config, number_of_regions, 0)
+    #simulator.add_monitor(TestSetEvalMonitor(simulator, learning_device, dataset_name))
 
     # Run simulation
     simulator.run(SIMULATION_STEPS)

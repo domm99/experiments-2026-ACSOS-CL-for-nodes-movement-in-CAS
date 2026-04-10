@@ -1,9 +1,9 @@
-from src import SIMULATION_STEPS
 from phyelds.calculus import aggregate
 from phyelds.libraries.time import local_time
 from CustomLeaderElection import elect_leaders
 from phyelds.libraries.spreading import broadcast
 from phyelds.libraries.collect import collect_with
+from src import SIMULATION_STEPS, CHANGE_AREA_EACH
 from phyelds.simulator.render import RenderMonitor
 from phyelds.libraries.spreading import distance_to
 from phyelds.libraries.device import local_id, store
@@ -14,15 +14,14 @@ from src.learning import local_training, model_evaluation, average_weights, init
 
 impulsesEvery = 5
 
-
 @aggregate
 def device(data, initial_model_weights, learning_device, seed, number_of_subareas, partitioning, moving=False):
 
     ### Getting data
     dataset_name = data.dataset_name
-    train_data, val_data = data.train_data
-    test_data = data.test_data[0]
-    other_data = {i + 1: d for i, d in enumerate(data.other_data)} if moving else {}
+    all_train_data = data.train_data
+    all_validation_data = data.val_data
+    all_test_data = data.test_data
 
     ### Hyperparams for exporting results
     hyperparams = f'seed-{seed}_subareas-{number_of_subareas}_dataset-{dataset_name}_partitioning-{partitioning}'
@@ -31,12 +30,21 @@ def device(data, initial_model_weights, learning_device, seed, number_of_subarea
     set_value, stored_info = remember((initial_model_weights, 0))
     local_model_weights, tick = stored_info
 
+    if local_id() == 0:
+        print(f'Doing tick: {tick}')
+
     local_model = load_from_weights(local_model_weights, dataset_name)
 
-    trained_model, training_loss = local_training(local_model, 2, train_data, 128, learning_device)
-    validation_accuracy, validation_loss = model_evaluation(trained_model, val_data, 128, learning_device, dataset_name)
+    train_data = all_train_data[tick//CHANGE_AREA_EACH if moving else 0]
 
-    log(training_loss, validation_loss, validation_accuracy)  # Metrics logging
+    trained_model, training_loss = local_training(local_model, 2, train_data, 128, learning_device)
+
+    ### all validation
+    for area_id, validation_data in enumerate(all_validation_data):
+        validation_accuracy, _ = model_evaluation(trained_model, validation_data, 128, learning_device, dataset_name)
+        store(f'accuracy-area-{area_id}', validation_accuracy)
+
+    #log(training_loss, validation_loss, validation_accuracy)  # Metrics logging
 
     ### SCR
     distances = neighbors_distances()
@@ -54,7 +62,7 @@ def device(data, initial_model_weights, learning_device, seed, number_of_subarea
 
 
     store('final_model', trained_model)
-    store('test_data', test_data)
+    store('test_data', all_test_data)
     store('hyperparams', hyperparams)
 
     return leader_id
