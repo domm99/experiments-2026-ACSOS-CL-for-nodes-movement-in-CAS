@@ -2,7 +2,7 @@ import copy
 import torch
 from torch import nn
 from src.learning.models import CnnEMNIST
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 def initialize_model(dataset_name):
     if dataset_name == 'EMNIST':
@@ -22,8 +22,9 @@ def local_training(model, epochs, data, batch_size, device):
     for _ in range(epochs):
         batch_loss = []
         for batch_index, (images, labels) in enumerate(data_loader):
-            images, labels = images.to(device), labels.to(device)
-            model.zero_grad()
+            images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
             output = model(images)
             loss = criterion(output, labels)
             loss.backward()
@@ -43,7 +44,8 @@ def model_evaluation(model_params, data, batch_size, device, dataset_name):
     data_loader = DataLoader(data, batch_size=batch_size, shuffle=False)
     with torch.no_grad():
         for batch_index, (images, labels) in enumerate(data_loader):
-            images, labels = images.to(device), labels.to(device)
+            images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
             outputs = model(images)
             batch_loss = criterion(outputs, labels)
             loss += batch_loss.item()
