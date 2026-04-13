@@ -7,9 +7,10 @@ import torch
 
 from ProFed import download_dataset
 from src.traveler import (
+    SUPPORTED_TRAVELER_STRATEGIES,
     load_traveler_snapshot,
     reconstruct_traveler_artifacts,
-    run_traveler_from_artifacts,
+    run_travelers_from_artifacts,
 )
 
 
@@ -36,6 +37,16 @@ def parse_args() -> argparse.Namespace:
         "--csv-path",
         default=None,
         help="Optional CSV output path (default: data/traveler_<experiment_name>.csv)",
+    )
+    parser.add_argument(
+        "--strategy",
+        action="append",
+        choices=SUPPORTED_TRAVELER_STRATEGIES,
+        default=None,
+        help=(
+            "Traveler strategy to run. Repeat the flag to run multiple strategies. "
+            "Default: run all supported strategies."
+        ),
     )
     parser.add_argument(
         "--quiet",
@@ -74,16 +85,18 @@ def main() -> None:
     if csv_path is None:
         csv_path = Path("data") / f"traveler_{experiment_name}.csv"
 
-    result = run_traveler_from_artifacts(
+    results = run_travelers_from_artifacts(
         artifacts=artifacts,
         dataset_name=dataset_name,
         learning_device=learning_device,
         seed=seed,
+        strategy_names=args.strategy,
         verbose=not args.quiet,
         csv_path=csv_path,
     )
-    if result.csv_path is not None:
-        print(result.csv_path)
+    for result in results.values():
+        if result.csv_path is not None:
+            print(result.csv_path)
 
 
 if __name__ == "__main__":

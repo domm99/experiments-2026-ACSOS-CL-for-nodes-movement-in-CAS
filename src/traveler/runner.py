@@ -5,23 +5,56 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 import torch
-from avalanche.benchmarks.scenarios.dataset_scenario import benchmark_from_datasets
-from avalanche.benchmarks.utils import as_taskaware_classification_dataset
+from avalanche.benchmarks.utils.classification_dataset import (
+    _as_taskaware_supervised_classification_dataset,
+)
 from avalanche.evaluation.metrics import accuracy_metrics, loss_metrics
 from avalanche.training.plugins import EvaluationPlugin
 from avalanche.training.plugins import ReplayPlugin
-from avalanche.training.supervised.strategy_wrappers import Naive
-from torch.utils.data import Dataset
+from avalanche.training.supervised.der import DER
+from avalanche.training.supervised.strategy_wrappers import LwF, Naive
 
 from src.learning import initialize_model
+from src.traveler.avalanche_patches import PatchedBiC
+from src.traveler.benchmark import benchmark_from_datasets_mutable
 from src.traveler.datasets import build_traveler_artifacts
 from src.traveler.types import (
     TravelerAreaArtifact,
     TravelerConfig,
     TravelerRunResult,
     TravelerStepResult,
+    TravelerStrategyName,
 )
 from src.traveler.utils import clone_state_dict, state_dicts_equal, traveler_log
+
+
+SUPPORTED_TRAVELER_STRATEGIES: tuple[TravelerStrategyName, ...] = (
+    "naive",
+    "lwf",
+    "replay",
+    "lwf_replay",
+    "bic",
+    "derpp",
+)
+
+
+def _uses_replay(strategy_name: TravelerStrategyName) -> bool:
+    return strategy_name in {"replay", "lwf_replay"}
+
+
+def _uses_lwf(strategy_name: TravelerStrategyName) -> bool:
+    return strategy_name in {"lwf", "lwf_replay"}
+
+
+def _strategy_csv_path(
+    csv_path: str | Path | None,
+    strategy_name: TravelerStrategyName,
+) -> Path | None:
+    if csv_path is None:
+        return None
+    path = Path(csv_path)
+    return path.with_name(f"{path.stem}_{strategy_name}{path.suffix}")
+
 
 def _build_strategy(
     dataset_name: str,
@@ -31,19 +64,69 @@ def _build_strategy(
 ):
     model = initialize_model(dataset_name)
     model.load_state_dict(copy.deepcopy(state_dict))
-    # SGD is the usual choice for CL...
-    # ...but Adam is the one used for the standard FL part.
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=config.learning_rate,
         weight_decay=config.weight_decay,
     )
-    replay_plugin = ReplayPlugin(mem_size=config.replay_mem_size)
+    plugins = []
+    if _uses_replay(config.strategy_name):
+        plugins.append(ReplayPlugin(mem_size=config.replay_mem_size))
+
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
             message="No loggers specified, metrics will not be logged",
         )
+        if config.strategy_name == "bic":
+            return PatchedBiC(
+                model=model,
+                optimizer=optimizer,
+                criterion=torch.nn.CrossEntropyLoss(),
+                mem_size=config.replay_mem_size,
+                val_percentage=config.bic_val_percentage,
+                T=config.bic_temperature,
+                stage_2_epochs=config.bic_stage_2_epochs,
+                lamb=config.bic_lambda,
+                lr=config.bic_lr,
+                train_mb_size=config.train_mb_size,
+                train_epochs=config.train_epochs,
+                eval_mb_size=config.eval_mb_size,
+                device=config.device,
+                plugins=plugins,
+                evaluator=evaluator,
+            )
+        if config.strategy_name == "derpp":
+            return DER(
+                model=model,
+                optimizer=optimizer,
+                criterion=torch.nn.CrossEntropyLoss(),
+                mem_size=config.replay_mem_size,
+                batch_size_mem=config.der_batch_size_mem,
+                alpha=config.der_alpha,
+                beta=config.der_beta,
+                train_mb_size=config.train_mb_size,
+                train_epochs=config.train_epochs,
+                eval_mb_size=config.eval_mb_size,
+                device=config.device,
+                plugins=plugins,
+                evaluator=evaluator,
+            )
+        if _uses_lwf(config.strategy_name):
+            return LwF(
+                model=model,
+                optimizer=optimizer,
+                criterion=torch.nn.CrossEntropyLoss(),
+                alpha=config.lwf_alpha,
+                temperature=config.lwf_temperature,
+                train_mb_size=config.train_mb_size,
+                train_epochs=config.train_epochs,
+                eval_mb_size=config.eval_mb_size,
+                device=config.device,
+                plugins=plugins,
+                evaluator=evaluator,
+            )
+
         return Naive(
             model=model,
             optimizer=optimizer,
@@ -51,7 +134,7 @@ def _build_strategy(
             train_epochs=config.train_epochs,
             eval_mb_size=config.eval_mb_size,
             device=config.device,
-            plugins=[replay_plugin],
+            plugins=plugins,
             evaluator=evaluator,
         )
 
@@ -92,13 +175,13 @@ def _run_traveler_from_artifacts(
     if not ordered_artifacts:
         raise ValueError("artifacts must not be empty")
 
-    benchmark = benchmark_from_datasets(
+    benchmark = benchmark_from_datasets_mutable(
         train=[
-            as_taskaware_classification_dataset(artifact.train_data)
+            _as_taskaware_supervised_classification_dataset(artifact.train_data)
             for artifact in ordered_artifacts
         ],
         test=[
-            as_taskaware_classification_dataset(artifact.test_data)
+            _as_taskaware_supervised_classification_dataset(artifact.test_data)
             for artifact in ordered_artifacts
         ],
     )
@@ -114,7 +197,10 @@ def _run_traveler_from_artifacts(
     test_experiences = list(benchmark.test_stream)
     traveler_log(
         config.verbose,
-        f"starting Avalanche traveler over {len(ordered_artifacts)} areas"
+        (
+            f"starting Avalanche traveler strategy={config.strategy_name} "
+            f"over {len(ordered_artifacts)} areas"
+        ),
     )
 
     for experience_index, (artifact, train_experience, test_experience) in enumerate(
@@ -125,11 +211,16 @@ def _run_traveler_from_artifacts(
         )
     ):
         current_samples = len(artifact.train_data)
-        replay_before_current = cumulative_seen_train_samples
+        replay_before_current = (
+            min(cumulative_seen_train_samples, config.replay_mem_size)
+            if _uses_replay(config.strategy_name)
+            else 0
+        )
         traveler_log(
             config.verbose,
             (
-                f"area {artifact.area_id}: training on {current_samples} current samples + "
+                f"strategy={config.strategy_name}, area {artifact.area_id}: "
+                f"training on {current_samples} current samples + "
                 f"{replay_before_current} replay samples"
             ),
         )
@@ -146,19 +237,25 @@ def _run_traveler_from_artifacts(
         cumulative_metrics = strategy.eval(test_experiences[: experience_index + 1])
         cumulative_accuracy, cumulative_loss = _extract_stream_metrics(cumulative_metrics)
         cumulative_seen_train_samples += current_samples
+        replay_samples = (
+            min(cumulative_seen_train_samples, config.replay_mem_size)
+            if _uses_replay(config.strategy_name)
+            else 0
+        )
         result = TravelerStepResult(
             area_id=artifact.area_id,
             current_accuracy=current_accuracy,
             current_loss=current_loss,
             cumulative_accuracy=cumulative_accuracy,
             cumulative_loss=cumulative_loss,
-            replay_samples=cumulative_seen_train_samples,
+            replay_samples=replay_samples,
         )
         results.append(result)
         traveler_log(
             config.verbose,
             (
-                f"area {result.area_id}: experience_acc={result.current_accuracy:.4f}, "
+                f"strategy={config.strategy_name}, area {result.area_id}: "
+                f"experience_acc={result.current_accuracy:.4f}, "
                 f"cumulative_acc={result.cumulative_accuracy:.4f}, "
                 f"replay_samples={result.replay_samples}"
             ),
@@ -230,20 +327,69 @@ def run_traveler_from_artifacts(
     dataset_name: str,
     learning_device: str,
     seed: int,
+    strategy_name: TravelerStrategyName = "replay",
     verbose: bool = True,
     csv_path: str | Path | None = None,
     check_consensus_models: bool = False,
 ) -> TravelerRunResult:
+    if strategy_name not in SUPPORTED_TRAVELER_STRATEGIES:
+        raise ValueError(
+            f"Unknown traveler strategy {strategy_name!r}. "
+            f"Supported values: {', '.join(SUPPORTED_TRAVELER_STRATEGIES)}"
+        )
     replay_mem_size = sum(len(artifact.train_data) for artifact in artifacts)
     config = TravelerConfig(
         dataset_name=dataset_name,
+        strategy_name=strategy_name,
         device=learning_device,
         seed=seed,
         verbose=verbose,
         check_consensus_models=check_consensus_models,
         replay_mem_size=replay_mem_size,
     )
-    return _run_traveler_from_artifacts(artifacts, config, csv_path=csv_path)
+    return _run_traveler_from_artifacts(
+        artifacts,
+        config,
+        csv_path=_strategy_csv_path(csv_path, strategy_name),
+    )
+
+
+def run_travelers_from_artifacts(
+    *,
+    artifacts: Sequence[TravelerAreaArtifact],
+    dataset_name: str,
+    learning_device: str,
+    seed: int,
+    strategy_names: Sequence[str] | None = None,
+    verbose: bool = True,
+    csv_path: str | Path | None = None,
+    check_consensus_models: bool = False,
+) -> dict[TravelerStrategyName, TravelerRunResult]:
+    selected_strategy_names = (
+        list(SUPPORTED_TRAVELER_STRATEGIES)
+        if strategy_names is None
+        else list(dict.fromkeys(strategy_names))
+    )
+    if not selected_strategy_names:
+        raise ValueError("At least one traveler strategy must be provided")
+    results: dict[TravelerStrategyName, TravelerRunResult] = {}
+    for strategy_name in selected_strategy_names:
+        if strategy_name not in SUPPORTED_TRAVELER_STRATEGIES:
+            raise ValueError(
+                f"Unknown traveler strategy {strategy_name!r}. "
+                f"Supported values: {', '.join(SUPPORTED_TRAVELER_STRATEGIES)}"
+            )
+        results[strategy_name] = run_traveler_from_artifacts(
+            artifacts=artifacts,
+            dataset_name=dataset_name,
+            learning_device=learning_device,
+            seed=seed,
+            strategy_name=strategy_name,
+            verbose=verbose,
+            csv_path=csv_path,
+            check_consensus_models=check_consensus_models,
+        )
+    return results
 
 
 def run_traveler(
@@ -256,6 +402,7 @@ def run_traveler(
     learning_device: str,
     seed: int,
     experiment_name: str,
+    strategy_name: TravelerStrategyName = "replay",
     verbose: bool = True,
     check_consensus_models: bool = False,
 ) -> TravelerRunResult:
@@ -281,6 +428,49 @@ def run_traveler(
         dataset_name=dataset_name,
         learning_device=learning_device,
         seed=seed,
+        strategy_name=strategy_name,
+        verbose=verbose,
+        csv_path=csv_path,
+        check_consensus_models=check_consensus_models,
+    )
+
+
+def run_travelers(
+    *,
+    simulator,
+    device_data,
+    traveler_area_train_datasets,
+    test_environment,
+    dataset_name: str,
+    learning_device: str,
+    seed: int,
+    experiment_name: str,
+    strategy_names: Sequence[str] | None = None,
+    verbose: bool = True,
+    check_consensus_models: bool = False,
+) -> dict[TravelerStrategyName, TravelerRunResult]:
+    consensus_models = _collect_consensus_models(
+        simulator,
+        device_data,
+        check_consensus_models=check_consensus_models,
+    )
+
+    traveler_test_data = {
+        area_id: region.training_data
+        for area_id, region in enumerate(test_environment.regions)
+    }
+    artifacts = build_traveler_artifacts(
+        traveler_area_train_datasets,
+        traveler_test_data,
+        consensus_models,
+    )
+    csv_path = Path("data") / f"traveler_{experiment_name}.csv"
+    return run_travelers_from_artifacts(
+        artifacts=artifacts,
+        dataset_name=dataset_name,
+        learning_device=learning_device,
+        seed=seed,
+        strategy_names=strategy_names,
         verbose=verbose,
         csv_path=csv_path,
         check_consensus_models=check_consensus_models,

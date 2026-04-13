@@ -6,7 +6,7 @@ from src.Device import device
 from src import SIMULATION_STEPS
 from src.experiment_utils import make_experiment_name
 from src.traveler.datasets import split_dataset_holdout
-from src.traveler.runner import collect_consensus_models, run_traveler
+from src.traveler.runner import collect_consensus_models, run_travelers
 from src.traveler.snapshot import save_traveler_snapshot
 from dataclasses import dataclass
 from torch.utils.data import Subset
@@ -60,6 +60,7 @@ def run_simulation(
     traveler_snapshot_enabled: bool = True,
     traveler_run_immediately: bool = True,
     traveler_holdout_ratio: float = 0.05,
+    traveler_strategies: list[str] | None = None,
     traveler_verbose: bool = True,
 ) -> None:
     seed_everything(seed)
@@ -213,7 +214,7 @@ def run_simulation(
         )
 
     if traveler_enabled and traveler_run_immediately:
-        run_traveler(
+        run_travelers(
             simulator=simulator,
             device_data=device_data,
             traveler_area_train_datasets=traveler_area_train_datasets,
@@ -222,6 +223,7 @@ def run_simulation(
             learning_device=learning_device,
             seed=seed,
             experiment_name=experiment_name,
+            strategy_names=traveler_strategies,
             verbose=traveler_verbose,
         )
 
@@ -235,6 +237,7 @@ def main():
     traveler_snapshot_enabled = True
     traveler_run_immediately = True
     traveler_holdout_ratio = 0.05
+    traveler_strategies = ["naive", "lwf", "replay", "lwf_replay", "bic", "derpp"]
     traveler_verbose = True
 
     start_time = time.time()
@@ -251,6 +254,7 @@ def main():
                     traveler_snapshot_enabled=traveler_snapshot_enabled,
                     traveler_run_immediately=traveler_run_immediately,
                     traveler_holdout_ratio=traveler_holdout_ratio,
+                    traveler_strategies=traveler_strategies,
                     traveler_verbose=traveler_verbose,
                 )
     end_time = time.time()
