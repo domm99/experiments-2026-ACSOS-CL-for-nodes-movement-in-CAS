@@ -211,6 +211,41 @@ def _collect_consensus_models(
     return consensus_models
 
 
+def collect_consensus_models(
+    simulator,
+    device_data: Mapping[int, object],
+    *,
+    check_consensus_models: bool = False,
+) -> dict[int, dict[str, torch.Tensor]]:
+    return _collect_consensus_models(
+        simulator,
+        device_data,
+        check_consensus_models=check_consensus_models,
+    )
+
+
+def run_traveler_from_artifacts(
+    *,
+    artifacts: Sequence[TravelerAreaArtifact],
+    dataset_name: str,
+    learning_device: str,
+    seed: int,
+    verbose: bool = True,
+    csv_path: str | Path | None = None,
+    check_consensus_models: bool = False,
+) -> TravelerRunResult:
+    replay_mem_size = sum(len(artifact.train_data) for artifact in artifacts)
+    config = TravelerConfig(
+        dataset_name=dataset_name,
+        device=learning_device,
+        seed=seed,
+        verbose=verbose,
+        check_consensus_models=check_consensus_models,
+        replay_mem_size=replay_mem_size,
+    )
+    return _run_traveler_from_artifacts(artifacts, config, csv_path=csv_path)
+
+
 def run_traveler(
     *,
     simulator,
@@ -240,18 +275,16 @@ def run_traveler(
         traveler_test_data,
         consensus_models,
     )
-    # TODO: move to a bounded size buffer (?)
-    replay_mem_size = sum(len(artifact.train_data) for artifact in artifacts)
-    config = TravelerConfig(
+    csv_path = Path("data") / f"traveler_{experiment_name}.csv"
+    return run_traveler_from_artifacts(
+        artifacts=artifacts,
         dataset_name=dataset_name,
-        device=learning_device,
+        learning_device=learning_device,
         seed=seed,
         verbose=verbose,
+        csv_path=csv_path,
         check_consensus_models=check_consensus_models,
-        replay_mem_size=replay_mem_size,
     )
-    csv_path = Path("data") / f"traveler_{experiment_name}.csv"
-    return _run_traveler_from_artifacts(artifacts, config, csv_path=csv_path)
 
 
 def export_traveler_results(

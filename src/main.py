@@ -1,11 +1,13 @@
 import torch
 import random
 import numpy as np
+from pathlib import Path
 from src.Device import device
 from src import SIMULATION_STEPS
 from src.experiment_utils import make_experiment_name
 from src.traveler.datasets import split_dataset_holdout
-from src.traveler.runner import run_traveler
+from src.traveler.runner import collect_consensus_models, run_traveler
+from src.traveler.snapshot import save_traveler_snapshot
 from dataclasses import dataclass
 from torch.utils.data import Subset
 from CustomDeployments import multi_grid
@@ -19,6 +21,7 @@ from phyelds.simulator.neighborhood import radius_neighborhood
 from phyelds.simulator.exporter import csv_exporter, ExporterConfig
 from phyelds.simulator.effects import DrawNodes, DrawEdges, RenderConfig, RenderMode
 from ProFed import download_dataset, split_train_validation, partition_to_subregions
+import time
 
 
 @dataclass
@@ -54,6 +57,8 @@ def run_simulation(
     number_of_regions: int,
     seed: int = 42,
     traveler_enabled: bool = False,
+    traveler_snapshot_enabled: bool = True,
+    traveler_run_immediately: bool = True,
     traveler_holdout_ratio: float = 0.05,
     traveler_verbose: bool = True,
 ) -> None:
@@ -185,7 +190,29 @@ def run_simulation(
     # Run simulation
     simulator.run(SIMULATION_STEPS)
 
-    if traveler_enabled:
+    if traveler_enabled and traveler_snapshot_enabled:
+        traveler_test_data = {
+            area_id: region.training_data
+            for area_id, region in enumerate(test_environment.regions)
+        }
+        consensus_models = collect_consensus_models(simulator, device_data)
+        snapshot_dir = Path("data") / "snapshots" / experiment_name
+        save_traveler_snapshot(
+            snapshot_dir,
+            manifest={
+                "experiment_name": experiment_name,
+                "dataset_name": dataset_name,
+                "partitioning_method": partitioning_method,
+                "seed": seed,
+                "number_of_regions": number_of_regions,
+                "traveler_holdout_ratio": traveler_holdout_ratio,
+            },
+            consensus_models_by_area=consensus_models,
+            traveler_train_data_by_area=traveler_area_train_datasets,
+            traveler_test_data_by_area=traveler_test_data,
+        )
+
+    if traveler_enabled and traveler_run_immediately:
         run_traveler(
             simulator=simulator,
             device_data=device_data,
@@ -205,9 +232,13 @@ def main():
     partitioning_methods = ['Hard']
     number_of_subareas = 4
     traveler_enabled = True
+    traveler_snapshot_enabled = True
+    traveler_run_immediately = True
     traveler_holdout_ratio = 0.05
     traveler_verbose = True
 
+    start_time = time.time()
+    print("Starting experiment")
     for seed in seeds:
         for dataset_name in dataset_names:
             for partitioning_method in partitioning_methods:
@@ -217,9 +248,14 @@ def main():
                     number_of_subareas,
                     seed,
                     traveler_enabled=traveler_enabled,
+                    traveler_snapshot_enabled=traveler_snapshot_enabled,
+                    traveler_run_immediately=traveler_run_immediately,
                     traveler_holdout_ratio=traveler_holdout_ratio,
                     traveler_verbose=traveler_verbose,
                 )
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Experiment completed in {elapsed_time:.2f} seconds")
 
 
 if __name__ == '__main__':
