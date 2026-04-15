@@ -56,6 +56,37 @@ def _strategy_csv_path(
     return path.with_name(f"{path.stem}_{strategy_name}{path.suffix}")
 
 
+def build_traveler_config(
+    *,
+    artifacts: Sequence[TravelerAreaArtifact],
+    dataset_name: str,
+    learning_device: str,
+    seed: int,
+    strategy_name: TravelerStrategyName = "replay",
+    verbose: bool = True,
+    check_consensus_models: bool = False,
+    overrides: Mapping[str, object] | None = None,
+) -> TravelerConfig:
+    if strategy_name not in SUPPORTED_TRAVELER_STRATEGIES:
+        raise ValueError(
+            f"Unknown traveler strategy {strategy_name!r}. "
+            f"Supported values: {', '.join(SUPPORTED_TRAVELER_STRATEGIES)}"
+        )
+
+    config_kwargs: dict[str, object] = {
+        "dataset_name": dataset_name,
+        "strategy_name": strategy_name,
+        "device": learning_device,
+        "seed": seed,
+        "verbose": verbose,
+        "check_consensus_models": check_consensus_models,
+        "replay_mem_size": sum(len(artifact.train_data) for artifact in artifacts),
+    }
+    if overrides is not None:
+        config_kwargs.update(overrides)
+    return TravelerConfig(**config_kwargs)
+
+
 def _build_strategy(
     dataset_name: str,
     state_dict,
@@ -230,11 +261,11 @@ def _run_traveler_from_artifacts(
                 category=DeprecationWarning,
                 message=r"Call to deprecated function update.*",
             )
-            strategy.train(train_experience)
+            strategy.train(train_experience, num_workers=8)
 
         current_metrics = strategy.eval([test_experience])
         current_accuracy, current_loss = _extract_stream_metrics(current_metrics)
-        cumulative_metrics = strategy.eval(test_experiences[: experience_index + 1])
+        cumulative_metrics = strategy.eval(test_experiences[: experience_index + 1], num_workers=8)
         cumulative_accuracy, cumulative_loss = _extract_stream_metrics(cumulative_metrics)
         cumulative_seen_train_samples += current_samples
         replay_samples = (
@@ -332,26 +363,34 @@ def run_traveler_from_artifacts(
     csv_path: str | Path | None = None,
     check_consensus_models: bool = False,
 ) -> TravelerRunResult:
-    if strategy_name not in SUPPORTED_TRAVELER_STRATEGIES:
-        raise ValueError(
-            f"Unknown traveler strategy {strategy_name!r}. "
-            f"Supported values: {', '.join(SUPPORTED_TRAVELER_STRATEGIES)}"
-        )
-    replay_mem_size = sum(len(artifact.train_data) for artifact in artifacts)
-    config = TravelerConfig(
+    config = build_traveler_config(
+        artifacts=artifacts,
         dataset_name=dataset_name,
-        strategy_name=strategy_name,
-        device=learning_device,
+        learning_device=learning_device,
         seed=seed,
+        strategy_name=strategy_name,
         verbose=verbose,
         check_consensus_models=check_consensus_models,
-        replay_mem_size=replay_mem_size,
     )
     return _run_traveler_from_artifacts(
         artifacts,
         config,
         csv_path=_strategy_csv_path(csv_path, strategy_name),
     )
+
+
+def run_traveler_from_artifacts_with_config(
+    *,
+    artifacts: Sequence[TravelerAreaArtifact],
+    config: TravelerConfig,
+    csv_path: str | Path | None = None,
+) -> TravelerRunResult:
+    if config.strategy_name not in SUPPORTED_TRAVELER_STRATEGIES:
+        raise ValueError(
+            f"Unknown traveler strategy {config.strategy_name!r}. "
+            f"Supported values: {', '.join(SUPPORTED_TRAVELER_STRATEGIES)}"
+        )
+    return _run_traveler_from_artifacts(artifacts, config, csv_path=csv_path)
 
 
 def run_travelers_from_artifacts(

@@ -5,11 +5,13 @@ from src.traveler.datasets import (
 )
 from src.traveler.runner import (
     SUPPORTED_TRAVELER_STRATEGIES,
+    build_traveler_config,
     collect_consensus_models,
     export_traveler_results,
     run_traveler,
     run_travelers,
     run_traveler_from_artifacts,
+    run_traveler_from_artifacts_with_config,
     run_travelers_from_artifacts,
 )
 from src.traveler.snapshot import (
@@ -35,6 +37,7 @@ __all__ = [
     "TravelerStepResult",
     "SUPPORTED_TRAVELER_STRATEGIES",
     "benchmark_from_datasets_mutable",
+    "build_traveler_config",
     "build_traveler_artifacts",
     "collect_consensus_models",
     "export_traveler_results",
@@ -43,6 +46,7 @@ __all__ = [
     "run_traveler",
     "run_travelers",
     "run_traveler_from_artifacts",
+    "run_traveler_from_artifacts_with_config",
     "run_travelers_from_artifacts",
     "save_traveler_snapshot",
     "split_dataset_holdout",
