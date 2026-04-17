@@ -1,6 +1,7 @@
 import copy
 import torch
 from torch import nn
+from torch.nn import functional as F
 from src.learning.models import CnnEMNIST
 from torch.utils.data import DataLoader, Dataset
 
@@ -64,3 +65,58 @@ def average_weights(models_params, weights):
             w_avg[key] += models_params[i][key] * weights[i]
         w_avg[key] = torch.div(w_avg[key], sum_weights)
     return w_avg
+
+
+def local_distillation(
+    student_weights,
+    teacher_weights,
+    data,
+    batch_size,
+    device,
+    dataset_name,
+    epochs=1,
+    alpha=0.5,
+    temperature=2.0,
+    verbose=False,
+):
+    criterion = nn.CrossEntropyLoss()
+    student_model = initialize_model(dataset_name)
+    teacher_model = initialize_model(dataset_name)
+    student_model.load_state_dict(student_weights)
+    teacher_model.load_state_dict(teacher_weights)
+
+    student_model.to(device)
+    teacher_model.to(device)
+    student_model.train()
+    teacher_model.eval()
+    epoch_loss = []
+
+    optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, weight_decay=1e-4)
+    data_loader = DataLoader(data, batch_size=batch_size, shuffle=False)
+
+    for epoch_index in range(epochs):
+        batch_loss = []
+        for images, labels in data_loader:
+            images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+
+            optimizer.zero_grad()
+            with torch.inference_mode():
+                teacher_logits = teacher_model(images)
+
+            student_logits = student_model(images)
+            student_loss = criterion(student_logits, labels)
+            distillation_loss = F.kl_div(
+                F.log_softmax(student_logits / temperature, dim=1),
+                F.softmax(teacher_logits / temperature, dim=1),
+                reduction='batchmean',
+            ) * (temperature ** 2)
+            loss = alpha * student_loss + (1 - alpha) * distillation_loss
+            loss.backward()
+            optimizer.step()
+            batch_loss.append(loss.item())
+
+        mean_epoch_loss = sum(batch_loss) / len(batch_loss)
+        epoch_loss.append(mean_epoch_loss)
+
+    return student_model.state_dict(), sum(epoch_loss) / len(epoch_loss)

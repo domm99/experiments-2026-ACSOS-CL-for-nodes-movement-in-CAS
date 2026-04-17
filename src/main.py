@@ -1,6 +1,8 @@
 import torch
 import random
+import time
 import numpy as np
+from typing import Literal
 from src.Device import device
 from dataclasses import dataclass
 from torch.utils.data import Subset
@@ -19,6 +21,7 @@ from phyelds.simulator.effects import DrawNodes, DrawEdges, RenderConfig, Render
 from ProFed import download_dataset, split_train_validation, partition_to_subregions
 
 
+
 @dataclass
 class DeviceData:
     dataset_name: str
@@ -27,13 +30,9 @@ class DeviceData:
     test_data: list[Subset]
 
 
-def get_current_learning_device():
-    learning_device: str = 'cpu'
-    if torch.accelerator.is_available():
-        current_accelerator = torch.accelerator.current_accelerator()
-        if current_accelerator is not None:
-            learning_device = current_accelerator.type
-    return learning_device
+def get_current_learning_device(preferred_learning_device: str | None) -> str:
+    dev_mod = torch.get_device_module(preferred_learning_device)
+    return dev_mod.__name__.removeprefix("torch.")
 
 
 def seed_everything(seed: int) -> None:
@@ -53,10 +52,24 @@ def move_node(simulator: Simulator, time_delta: float, node: Node, i: int, **kwa
     simulator.schedule_event(time_delta, move_node, simulator, time_delta, node, (i+1)%4, **kwargs)
 
 
-def run_simulation(dataset_name: str, partitioning_method: str, number_of_regions: int, seed: int = 42) -> None:
+def run_simulation(
+    dataset_name: str,
+    partitioning_method: str,
+    number_of_regions: int,
+    preferred_learning_device: str | None,
+    training_strategy: Literal["normal", "distillation"] = 'distillation',
+    distill_on_area_entry: bool = True,
+    enable_replay: bool = True,
+    seed: int = 42,
+) -> None:
     seed_everything(seed)
-    learning_device = get_current_learning_device()
+    print("Starting simulation with seed:", seed)
+    start_time = time.time()
+    learning_device = get_current_learning_device(preferred_learning_device)
     simulator = Simulator()
+
+    if training_strategy not in {'normal', 'distillation'}:
+        raise ValueError(f'Unknown training strategy: {training_strategy}')
 
     ## Nodes deployment
     simulator.environment.set_neighborhood_function(radius_neighborhood(40))
@@ -144,6 +157,9 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
             number_of_subareas=number_of_regions,
             partitioning=partitioning_method,
             moving=moving,
+            training_strategy=training_strategy,
+            distill_on_area_entry=distill_on_area_entry,
+            enable_replay=enable_replay,
         )
 
     moving_node = list(simulator.environment.nodes.values())[0]
@@ -176,6 +192,8 @@ def run_simulation(dataset_name: str, partitioning_method: str, number_of_region
 
     # Run simulation
     simulator.run(SIMULATION_STEPS)
+    print(f"Simulation finished in {time.time() - start_time:.2f} seconds")
+
 
 if __name__ == '__main__':
 
@@ -183,8 +201,21 @@ if __name__ == '__main__':
     dataset_names = ['EMNIST']
     partitioning_methods = ['Hard']
     number_of_subareas = 4
+    preferred_learning_device = None
+    training_strategy = 'normal'
+    distill_on_area_entry = True
+    enable_replay = False
 
     for seed in seeds:
         for dataset_name in dataset_names:
             for partitioning_method in partitioning_methods:
-                run_simulation(dataset_name, partitioning_method, number_of_subareas, seed)
+                run_simulation(
+                    dataset_name,
+                    partitioning_method,
+                    number_of_subareas,
+                    preferred_learning_device,
+                    training_strategy,
+                    distill_on_area_entry,
+                    enable_replay,
+                    seed,
+                )
