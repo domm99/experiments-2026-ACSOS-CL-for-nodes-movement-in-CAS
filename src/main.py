@@ -204,7 +204,7 @@ if __name__ == '__main__':
     preferred_learning_device = None
     training_strategy = 'normal'
     distill_on_area_entry = True
-    enable_replay = False
+    enable_replay = True
 
     for seed in seeds:
         for dataset_name in dataset_names:
