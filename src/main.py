@@ -9,7 +9,7 @@ from typing import Literal
 from src.Device import device
 from dataclasses import dataclass
 from torch.utils.data import Subset
-from CustomDeployments import multi_grid
+from CustomDeployments import multi_grid, grid_from
 from src.learning import initialize_model
 from phyelds.simulator import Simulator, Node
 from src import SIMULATION_STEPS, CHANGE_AREA_EACH
@@ -60,7 +60,7 @@ def run_simulation(
     partitioning_method: str,
     number_of_regions: int,
     preferred_learning_device: str | None,
-    training_strategy: Literal["normal", "distillation"] = 'distillation',
+    training_strategy: Literal["normal", "distillation", "no_merge"] = 'distillation',
     distill_on_area_entry: bool = True,
     enable_replay: bool = True,
     seed: int = 42,
@@ -71,12 +71,18 @@ def run_simulation(
     learning_device = get_current_learning_device(preferred_learning_device)
     simulator = Simulator()
 
-    if training_strategy not in {'normal', 'distillation'}:
+    if training_strategy not in {'normal', 'distillation', 'no_merge'}:
         raise ValueError(f'Unknown training strategy: {training_strategy}')
 
     ## Nodes deployment
     simulator.environment.set_neighborhood_function(radius_neighborhood(40))
-    mapping_area_nodes = multi_grid(simulator, [(0, 0, 7, 6, 2), (30, 0, 7, 6, 2), (30, 30, 7, 6, 2), (0, 30, 7, 6, 2)], 42)
+    mapping_area_nodes = multi_grid(simulator, [
+        grid_from(xs=0, ys=0, width=7, height=6, spacing=2),  
+        grid_from(xs=30, ys=0, width=7, height=6, spacing=2), 
+        grid_from(xs=30, ys=30, width=7, height=6, spacing=2), 
+        grid_from(xs=0, ys=30, width=7, height=6, spacing=2)], 
+        42
+    )
     nodes_per_subarea = len(mapping_area_nodes[0])
 
     ## Data split and distribution

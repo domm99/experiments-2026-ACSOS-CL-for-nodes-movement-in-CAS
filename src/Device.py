@@ -86,6 +86,8 @@ def device(
             )
         elif training_strategy == "normal":
             trained_model = average_weights([trained_model, area_model], [0.1, 0.9])
+        elif training_strategy == "no_merge":
+            pass
         else:
             raise ValueError(f"Unknown training strategy: {training_strategy}")
 
