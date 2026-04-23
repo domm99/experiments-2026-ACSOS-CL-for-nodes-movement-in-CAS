@@ -42,8 +42,8 @@ def device(
     hyperparams = f'seed-{seed}_subareas-{number_of_subareas}_dataset-{dataset_name}_partitioning-{partitioning}'
 
     ### Local training
-    set_value, stored_info = remember((initial_model_weights, 0, None, 0))
-    local_model_weights, tick, leader_id, previous_area = stored_info
+    set_value, stored_info = remember((initial_model_weights, 0, 0))
+    local_model_weights, tick, previous_area = stored_info
 
     if local_id() == 0:
         print(f'Doing tick: {tick}')
@@ -60,17 +60,17 @@ def device(
         train_data = all_train_data[current_area]
 
     trained_model, _ = local_training(local_model, 2, train_data, 128, learning_device)
-    
+
+    ### SCR
+    distances = neighbors_distances()
+    (am_i_leader, leader_id) = elect_leaders(20, distances)
+    potential = distance_to(am_i_leader, distances)
+    models = collect_with(potential, [trained_model], lambda x, y: x + y)
+    aggregated_model = average_weights(models, [1.0 for _ in models])
+    area_model = broadcast(am_i_leader, aggregated_model, distances)
+
     should_merge = (tick % impulsesEvery == 0) or (distill_on_area_entry and area_changed)
     if should_merge:
-        ### SCR
-        distances = neighbors_distances()
-        (am_i_leader, leader_id) = elect_leaders(20, distances)
-        potential = distance_to(am_i_leader, distances)
-        models = collect_with(potential, [trained_model], lambda x, y: x + y)
-        aggregated_model = average_weights(models, [1.0 for _ in models])
-        area_model = broadcast(am_i_leader, aggregated_model, distances)
-
         if training_strategy == "distillation":
             # Distillation
             trained_model, _ = local_distillation(
@@ -95,7 +95,7 @@ def device(
             validation_accuracy, _ = model_evaluation(trained_model, validation_data, 128, learning_device, dataset_name)
             store(f'accuracy-area-{area_id}', validation_accuracy)
 
-    set_value((trained_model, tick + 1, leader_id, current_area))
+    set_value((trained_model, tick + 1, current_area))
 
     store('final_model', trained_model)
     store('test_data', all_test_data)
