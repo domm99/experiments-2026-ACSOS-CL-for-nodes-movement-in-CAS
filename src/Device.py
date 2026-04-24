@@ -99,16 +99,15 @@ def device(
                 alpha=distillationAlpha,
                 temperature=distillationTemperature,
             )
-            trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 1, train_data, 32, learning_device)
-
         elif training_strategy == "normal":
             trained_model = average_weights([trained_model, area_model], [0.1, 0.9])
-            trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 2, train_data, 32, learning_device)
         elif training_strategy == "no_merge":
             pass
         else:
             raise ValueError(f"Unknown training strategy: {training_strategy}")
-        
+
+    trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 2, train_data, 32, learning_device)
+
     if am_i_leader:
         print(f"Node {local_id()} is a leader at tick {tick} with potential {potential} and collected {len(models)} models.")
     ### Moving node validation
