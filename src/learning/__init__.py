@@ -2,12 +2,12 @@ import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
-from src.learning.models import CnnEMNIST
+from src.learning.models import MLP, CnnEMNIST
 from torch.utils.data import DataLoader, Dataset
 
 def initialize_model(dataset_name):
     if dataset_name == 'EMNIST':
-        return CnnEMNIST()
+        return MLP()
     elif dataset_name == 'CIFAR100':
         raise Exception("CIFAR100 model not implemented yet")
     else:

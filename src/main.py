@@ -6,7 +6,7 @@ import random
 import time
 import numpy as np
 from typing import Literal
-from src.Device import device
+from src.Device import device, device_simple
 from dataclasses import dataclass
 from torch.utils.data import Subset
 from CustomDeployments import multi_grid, grid_from
@@ -50,9 +50,9 @@ def seed_everything(seed: int) -> None:
 
 
 def move_node(simulator: Simulator, time_delta: float, node: Node, i: int, **kwargs) -> None:
-    possible_positions = [(0,0), (30.5, 0.5), (30.5, 30.5), (0.5, 30.5)]
+    possible_positions = [(0, 0), (30.5, 0.5), (30.5, 30.5), (0.5, 30.5)]
     node.update(new_position = possible_positions[i])
-    simulator.schedule_event(time_delta, move_node, simulator, time_delta, node, (i+1)%4, **kwargs)
+    simulator.schedule_event(time_delta, move_node, simulator, time_delta, node, (i + 1) % 4, **kwargs)
 
 
 def run_simulation(
@@ -75,7 +75,7 @@ def run_simulation(
         raise ValueError(f'Unknown training strategy: {training_strategy}')
 
     ## Nodes deployment
-    simulator.environment.set_neighborhood_function(radius_neighborhood(40))
+    simulator.environment.set_neighborhood_function(radius_neighborhood(10))
     mapping_area_nodes = multi_grid(simulator, [
         grid_from(xs=0, ys=0, width=7, height=6, spacing=2),  
         grid_from(xs=30, ys=0, width=7, height=6, spacing=2), 
@@ -156,7 +156,7 @@ def run_simulation(
             random.random() / 100,
             aggregate_program_runner,
             simulator,
-            1.1,
+            1.0,
             node,
             device,
             data=device_data[node.id],
@@ -170,9 +170,17 @@ def run_simulation(
             distill_on_area_entry=distill_on_area_entry,
             enable_replay=enable_replay,
         )
+        # simulator.schedule_event(
+        #     random.random() / 100,
+        #     aggregate_program_runner,
+        #     simulator,
+        #     1.0,
+        #     node,
+        #     device_simple,
+        # )
 
     moving_node = list(simulator.environment.nodes.values())[0]
-    simulator.schedule_event(0.1, move_node, simulator, CHANGE_AREA_EACH, moving_node, 1)
+    simulator.schedule_event(0.1, move_node, simulator, CHANGE_AREA_EACH, moving_node, 0)
 
     # render
     CustomRenderMonitor(
@@ -189,7 +197,7 @@ def run_simulation(
 
     config = ExporterConfig(
         'data/',
-        f'experiment_seed-{seed}_subareas-{number_of_regions}_dataset-{dataset_name}_partitioning-{partitioning_method}',
+        f'experiment_seed-{seed}_subareas-{number_of_regions}_dataset-{dataset_name}_partitioning-{partitioning_method}-kind-{training_strategy}-distill-{distill_on_area_entry}-replay-{enable_replay}',
         [],
         [],
         3,
@@ -210,9 +218,9 @@ if __name__ == '__main__':
     dataset_names = ['EMNIST']
     partitioning_methods = ['Hard']
     number_of_subareas = 4
-    preferred_learning_device = None
-    training_strategy = 'normal'
-    distill_on_area_entry = True
+    preferred_learning_device = "cpu"
+    training_strategy = 'normal'  # 'normal', 'distillation', 'no_merge'
+    distill_on_area_entry = False
     enable_replay = True
 
     for seed in seeds:

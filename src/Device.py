@@ -1,6 +1,7 @@
 from phyelds.calculus import aggregate
 from phyelds.libraries.time import local_time
-from torch.utils.data import ConcatDataset
+from torch.utils.data import ConcatDataset, Subset
+from phyelds.libraries.collect import count_nodes
 from CustomLeaderElection import elect_leaders
 from phyelds.libraries.spreading import broadcast
 from phyelds.libraries.collect import collect_with
@@ -17,6 +18,18 @@ impulsesEvery = 5
 distillationEpochs = 1
 distillationAlpha = 0.5
 distillationTemperature = 2.0
+local_sample_percentage = 0.1
+
+@aggregate
+def device_simple():
+    distances = neighbors_distances()
+    (am_i_leader, leader_id) = elect_leaders(20, distances)
+    potential = distance_to(am_i_leader, distances)
+    nodes = count_nodes(potential)
+    if am_i_leader:
+        print(f"Leader elected: {leader_id} - nodes: {nodes} - time: {local_time()}")
+    area_value = broadcast(am_i_leader, nodes, distances)
+    return area_value
 
 @aggregate
 def device(
@@ -44,23 +57,25 @@ def device(
     ### Local training
     set_value, stored_info = remember((initial_model_weights, 0, 0))
     local_model_weights, tick, previous_area = stored_info
-
-    if local_id() == 0:
-        print(f'Doing tick: {tick}')
-
+    #if local_id() == 0:
+    #    print(f'Doing tick: {tick}')
+    
     local_model = load_from_weights(local_model_weights, dataset_name)
 
-    current_area = (tick // CHANGE_AREA_EACH) % len(all_train_data) if moving else 0
+    current_area = (tick // CHANGE_AREA_EACH) if moving else 0
+    #if local_id() == 0:
+    #    print(f"Node {local_id()} - Tick {tick} - Current area: {current_area} - {(tick // CHANGE_AREA_EACH)}")
     area_changed = moving and tick > 0 and current_area != previous_area
-
+    sampled = int(len(all_train_data[current_area]) * local_sample_percentage)
     if moving and enable_replay:
         # Add replay data from previous areas
-        train_data = ConcatDataset(all_train_data[:current_area+1])
+        train_data = ConcatDataset([Subset(ds, range(int(len(ds) * local_sample_percentage))) for ds in all_train_data[:current_area+1]])
     else:
-        train_data = all_train_data[current_area]
+        train_data = Subset(all_train_data[current_area], range(sampled))
+    trained_model, _ = local_training(local_model, 2, train_data, 32, learning_device)
 
-    trained_model, _ = local_training(local_model, 2, train_data, 128, learning_device)
-
+    # statistics
+    # print(f"Node {local_id()} - Tick {tick} - Area {current_area} - Train samples: {len(train_data)}")
     ### SCR
     distances = neighbors_distances()
     (am_i_leader, leader_id) = elect_leaders(20, distances)
@@ -77,20 +92,25 @@ def device(
                 trained_model,
                 area_model,
                 train_data,
-                128,
+                32,
                 learning_device,
                 dataset_name,
                 epochs=distillationEpochs,
                 alpha=distillationAlpha,
                 temperature=distillationTemperature,
             )
+            trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 1, train_data, 32, learning_device)
+
         elif training_strategy == "normal":
             trained_model = average_weights([trained_model, area_model], [0.1, 0.9])
+            trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 2, train_data, 32, learning_device)
         elif training_strategy == "no_merge":
             pass
         else:
             raise ValueError(f"Unknown training strategy: {training_strategy}")
-
+        
+    if am_i_leader:
+        print(f"Node {local_id()} is a leader at tick {tick} with potential {potential} and collected {len(models)} models.")
     ### Moving node validation
     if moving:
         for area_id, validation_data in enumerate(all_validation_data):
