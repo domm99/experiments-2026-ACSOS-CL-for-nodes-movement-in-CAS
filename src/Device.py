@@ -17,7 +17,7 @@ from src.learning import local_training, local_distillation, model_evaluation, a
 impulsesEvery = 5
 distillationEpochs = 1
 distillationAlpha = 0.5
-distillationTemperature = 2.0
+distillationTemperature = 4.0
 local_sample_percentage = 0.1
 
 @aggregate
@@ -70,10 +70,12 @@ def device(
     if moving and enable_replay:
         # Add replay data from previous areas
         train_data = ConcatDataset([Subset(ds, range(int(len(ds) * local_sample_percentage))) for ds in all_train_data[:current_area+1]])
+        # Take the current area data for distillation
     else:
         train_data = Subset(all_train_data[current_area], range(sampled))
     trained_model, _ = local_training(local_model, 2, train_data, 32, learning_device)
-
+    distilled_data = Subset(all_train_data[current_area], range(sampled))
+    
     # statistics
     # print(f"Node {local_id()} - Tick {tick} - Area {current_area} - Train samples: {len(train_data)}")
     ### SCR
@@ -91,7 +93,7 @@ def device(
             trained_model, _ = local_distillation(
                 trained_model,
                 area_model,
-                train_data,
+                distilled_data,
                 32,
                 learning_device,
                 dataset_name,
@@ -101,12 +103,12 @@ def device(
             )
         elif training_strategy == "normal":
             trained_model = average_weights([trained_model, area_model], [0.1, 0.9])
+            trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 2, train_data, 32, learning_device)
         elif training_strategy == "no_merge":
             pass
         else:
             raise ValueError(f"Unknown training strategy: {training_strategy}")
 
-    trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 2, train_data, 32, learning_device)
 
     if am_i_leader:
         print(f"Node {local_id()} is a leader at tick {tick} with potential {potential} and collected {len(models)} models.")

@@ -12,7 +12,7 @@ def get_exp_name(file):
 
 all_dfs = []
 
-# 1. Quello che c'era prima (singoli plot)
+# 1. Individual plots
 for file in csv_files:
     print(f"Processing individual file: {file}")
 
@@ -40,7 +40,7 @@ for file in csv_files:
 combined_df = pd.concat(all_dfs)
 
 
-# 2. In un solo grafico (usando stili diversi)
+# 2. All experiments combined
 print("Generating combined plot...")
 plt.figure(figsize=(14,8))
 sns.lineplot(data=combined_df, x="index", y="value", hue="metric", style="experiment")
@@ -52,14 +52,27 @@ plt.tight_layout()
 plt.savefig('accuracy_combined_all.pdf')
 plt.close()
 
-# 3. Falli a coppie
+# 2.1 All experiments combined - Average Accuracy
+print("Generating combined average plot...")
+avg_df = combined_df.groupby(['index', 'experiment'])['value'].mean().reset_index()
+plt.figure(figsize=(14,8))
+sns.lineplot(data=avg_df, x="index", y="value", hue="experiment")
+plt.xlabel("Global Round")
+plt.ylabel("Average Accuracy")
+plt.title("All Experiments Combined - Average Accuracy")
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.savefig('accuracy_combined_all_average.pdf')
+plt.close()
+
+# 3. Only pairs of interest
 pairs = [
     ("FL_merge", "C2FL_merge"),
     ("Local", "CL"),
     ("FL_merge", "FL_distillation"),
     ("CL", "C2FL_distillation"),
     ("C2FL_merge", "CL"),
-    ("Local", "FL_merge")
+    ("Local", "FL_merge"),
 ]
 
 for p1, p2 in pairs:

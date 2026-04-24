@@ -222,36 +222,36 @@ if __name__ == '__main__':
     preferred_learning_device = "cpu"
 
     experiments = {
-        'C2FL_merge': {
-            'training_strategy': 'normal',
-            'enable_replay': True,
-            'distill_on_area_entry': False, ## TODO check this
-        },
-        'C2FL_distillation': {
-            'training_strategy': 'distillation',
-            'enable_replay': True,
-            'distill_on_area_entry': False,  ## TODO check this
-        },
-        'FL_merge': {
-            'training_strategy': 'normal',
-            'enable_replay': False,
-            'distill_on_area_entry': False,  ## TODO check this
-        },
+        # 'C2FL_merge': {
+        #     'training_strategy': 'normal',
+        #     'enable_replay': True,
+        #     'distill_on_area_entry': False, ## TODO check this
+        # },
+        # 'C2FL_distillation': {
+        #     'training_strategy': 'distillation',
+        #     'enable_replay': True,
+        #     'distill_on_area_entry': False,  ## TODO check this
+        # },
+        # 'FL_merge': {
+        #     'training_strategy': 'normal',
+        #     'enable_replay': False,
+        #     'distill_on_area_entry': False,  ## TODO check this
+        # },
         'FL_distillation': {
             'training_strategy': 'distillation',
             'enable_replay': False,
             'distill_on_area_entry': False,  ## TODO check this
         },
-        'CL': {
-            'training_strategy': 'no_merge',
-            'enable_replay': True,
-            'distill_on_area_entry': False,  ## TODO check this
-        },
-        'Local': {
-            'training_strategy': 'no_merge',
-            'enable_replay': False,
-            'distill_on_area_entry': False,  ## TODO check this
-        }
+        # 'CL': {
+        #     'training_strategy': 'no_merge',
+        #     'enable_replay': True,
+        #     'distill_on_area_entry': False,  ## TODO check this
+        # },
+        # 'Local': {
+        #     'training_strategy': 'no_merge',
+        #     'enable_replay': False,
+        #     'distill_on_area_entry': False,  ## TODO check this
+        # }
     }
 
     # training_strategies = ['normal', 'distillation', 'no_merge']
