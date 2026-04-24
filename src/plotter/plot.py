@@ -8,11 +8,7 @@ import re
 csv_files = glob.glob("data/*.csv")
 
 def get_exp_name(file):
-    match = re.search(r'kind-(.*?)-distill-(.*?)-replay-(.*?)\.csv', file)
-    if match:
-        kind, distill, replay = match.groups()
-        return f"{kind}_distill-{distill}_replay-{replay}"
-    return os.path.basename(file)
+    return file.split('42_')[-1].split('.')[0]
 
 all_dfs = []
 
@@ -43,6 +39,7 @@ for file in csv_files:
 
 combined_df = pd.concat(all_dfs)
 
+
 # 2. In un solo grafico (usando stili diversi)
 print("Generating combined plot...")
 plt.figure(figsize=(14,8))
@@ -57,12 +54,12 @@ plt.close()
 
 # 3. Falli a coppie
 pairs = [
-    ("normal_distill-False_replay-False", "normal_distill-False_replay-True"),
-    ("no_merge_distill-False_replay-False", "no_merge_distill-False_replay-True"),
-    ("normal_distill-False_replay-False", "distillation_distill-False_replay-True"),
-    ("no_merge_distill-False_replay-True", "distillation_distill-False_replay-True"),
-    ("normal_distill-False_replay-True", "normal_distill-False_replay-False"),
-    ("normal_distill-False_replay-True", "no_merge_distill-False_replay-True"),
+    ("FL_merge", "C2FL_merge"),
+    ("Local", "CL"),
+    ("FL_merge", "FL_distillation"),
+    ("CL", "C2FL_distillation"),
+    ("C2FL_merge", "CL"),
+    ("Local", "FL_merge")
 ]
 
 for p1, p2 in pairs:

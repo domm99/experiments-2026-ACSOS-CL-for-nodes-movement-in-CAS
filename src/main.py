@@ -56,6 +56,7 @@ def move_node(simulator: Simulator, time_delta: float, node: Node, i: int, **kwa
 
 
 def run_simulation(
+    experiment_name:str,
     dataset_name: str,
     partitioning_method: str,
     number_of_regions: int,
@@ -197,7 +198,7 @@ def run_simulation(
 
     config = ExporterConfig(
         'data/',
-        f'experiment_seed-{seed}_subareas-{number_of_regions}_dataset-{dataset_name}_partitioning-{partitioning_method}-kind-{training_strategy}-distill-{distill_on_area_entry}-replay-{enable_replay}',
+        f'experiment_seed-{seed}_{experiment_name}',
         [],
         [],
         3,
@@ -219,20 +220,57 @@ if __name__ == '__main__':
     partitioning_methods = ['Hard']
     number_of_subareas = 4
     preferred_learning_device = "cpu"
-    training_strategy = 'normal'  # 'normal', 'distillation', 'no_merge'
-    distill_on_area_entry = False
-    enable_replay = True
+
+    experiments = {
+        'C2FL_merge': {
+            'training_strategy': 'normal',
+            'enable_replay': True,
+            'distill_on_area_entry': False, ## TODO check this
+        },
+        'C2FL_distillation': {
+            'training_strategy': 'distillation',
+            'enable_replay': True,
+            'distill_on_area_entry': False,  ## TODO check this
+        },
+        'FL_merge': {
+            'training_strategy': 'normal',
+            'enable_replay': False,
+            'distill_on_area_entry': False,  ## TODO check this
+        },
+        'FL_distillation': {
+            'training_strategy': 'distillation',
+            'enable_replay': False,
+            'distill_on_area_entry': False,  ## TODO check this
+        },
+        'CL': {
+            'training_strategy': 'no_merge',
+            'enable_replay': True,
+            'distill_on_area_entry': False,  ## TODO check this
+        },
+        'Local': {
+            'training_strategy': 'no_merge',
+            'enable_replay': False,
+            'distill_on_area_entry': False,  ## TODO check this
+        }
+    }
+
+    # training_strategies = ['normal', 'distillation', 'no_merge']
+    # distill_on_area_entry = False
+    # enable_replay = True
 
     for seed in seeds:
-        for dataset_name in dataset_names:
-            for partitioning_method in partitioning_methods:
-                run_simulation(
-                    dataset_name,
-                    partitioning_method,
-                    number_of_subareas,
-                    preferred_learning_device,
-                    training_strategy,
-                    distill_on_area_entry,
-                    enable_replay,
-                    seed,
-                )
+        for experiment_name, parameters in experiments.items():
+            for dataset_name in dataset_names:
+                for partitioning_method in partitioning_methods:
+                    print(f'------------------------ Running experiment {experiment_name} ------------------------')
+                    run_simulation(
+                        experiment_name,
+                        dataset_name,
+                        partitioning_method,
+                        number_of_subareas,
+                        preferred_learning_device,
+                        parameters['training_strategy'],
+                        parameters['distill_on_area_entry'],
+                        parameters['enable_replay'],
+                        seed,
+                    )
