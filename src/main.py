@@ -33,6 +33,9 @@ class DeviceData:
     test_data: list[Subset]
 
 
+MOVING_NODE_FRACTION = 0.30
+
+
 def get_current_learning_device(preferred_learning_device: str | None) -> str:
     dev_mod = torch.get_device_module(preferred_learning_device)
     return dev_mod.__name__.removeprefix("torch.")
@@ -49,10 +52,12 @@ def seed_everything(seed: int) -> None:
     torch.use_deterministic_algorithms(True)
 
 
-def move_node(simulator: Simulator, time_delta: float, node: Node, i: int, **kwargs) -> None:
+def move_node(simulator: Simulator, time_delta: float, node: Node, home_area: int, step: int, node_offset: tuple[float, float], **kwargs) -> None:
     possible_positions = [(0, 0), (30.5, 0.5), (30.5, 30.5), (0.5, 30.5)]
-    node.update(new_position = possible_positions[i])
-    simulator.schedule_event(time_delta, move_node, simulator, time_delta, node, (i + 1) % 4, **kwargs)
+    current_position_index = (home_area + step) % 4
+    base = possible_positions[current_position_index]
+    node.update(new_position=(base[0] + node_offset[0], base[1] + node_offset[1]))
+    simulator.schedule_event(time_delta, move_node, simulator, time_delta, node, home_area, step + 1, node_offset, **kwargs)
 
 
 def run_simulation(
@@ -121,13 +126,42 @@ def run_simulation(
     for area_id in range(number_of_subareas):
         train_mapping_device_data = train_environment.from_subregion_to_devices(
             area_id,
-            nodes_per_subarea + (0 if area_id == 0 else 1),
+            nodes_per_subarea + 1,
         )
         test_mapping_device_data = test_environment.from_subregion_to_devices(
             area_id,
-            nodes_per_subarea + (0 if area_id == 0 else 1),
+            nodes_per_subarea + 1,
         )
         all_data[area_id] = (train_mapping_device_data, test_mapping_device_data)
+
+    total_nodes = sum(len(ids) for ids in mapping_area_nodes.values())
+    total_moving = max(1, int(total_nodes * MOVING_NODE_FRACTION))
+    nodes_per_area = {area_id: len(ids) for area_id, ids in mapping_area_nodes.items()}
+    moving_per_area = {}
+    remaining = total_moving
+    for area_id in sorted(nodes_per_area.keys()):
+        alloc = max(1, round(nodes_per_area[area_id] / total_nodes * total_moving)) if remaining > 1 else remaining
+        moving_per_area[area_id] = alloc
+        remaining -= alloc
+
+    moving_node_ids = []
+    for area_id in mapping_area_nodes.keys():
+        area_node_list = mapping_area_nodes[area_id]
+        n_moving = moving_per_area[area_id]
+        step = max(1, len(area_node_list) // (n_moving + 1))
+        selected = [area_node_list[i * step] for i in range(n_moving)]
+        moving_node_ids.extend(selected)
+
+    moving_node_ids_set = set(moving_node_ids)
+    node_home_area = {}
+    for area_id, ids in mapping_area_nodes.items():
+        for nid in ids:
+            if nid in moving_node_ids_set:
+                node_home_area[nid] = area_id
+
+    print(f"Moving nodes ({len(moving_node_ids)}/{total_nodes}, {MOVING_NODE_FRACTION*100:.0f}%): {moving_node_ids}")
+    for nid in moving_node_ids:
+        print(f"  Node {nid} - Home area: {node_home_area[nid]}")
 
     device_data = {}
 
@@ -138,20 +172,27 @@ def run_simulation(
             train_data = train_data_mapping[index % nodes_per_subarea]
             test_data = test_data_mapping[index % nodes_per_subarea]
 
-            if index == 0:
-                other_data = []
-                for next_area_id in range(1, number_of_subareas):
-                    train_data_mapping, test_data_mapping = all_data[next_area_id]
-                    next_train_data = train_data_mapping[nodes_per_subarea]
-                    next_test_data = test_data_mapping[nodes_per_subarea]
-                    other_data.append((next_train_data[0], next_train_data[1], next_test_data[0]))
+            if index in moving_node_ids_set:
+                all_train = [None] * number_of_subareas
+                all_val = [None] * number_of_subareas
+                all_test = [None] * number_of_subareas
+                all_train[area_id] = train_data[0]
+                all_val[area_id] = train_data[1]
+                all_test[area_id] = test_data
+                for other_area_id in range(number_of_subareas):
+                    if other_area_id == area_id:
+                        continue
+                    other_mapping_train, other_mapping_test = all_data[other_area_id]
+                    other_train_data = other_mapping_train[nodes_per_subarea]
+                    other_test_data = other_mapping_test[nodes_per_subarea]
+                    all_train[other_area_id] = other_train_data[0]
+                    all_val[other_area_id] = other_train_data[1]
+                    all_test[other_area_id] = other_test_data
             else:
-                other_data = []
-
-            train, val = train_data
-            all_train = [train] + [o[0] for o in other_data]
-            all_val = [val] + [o[1] for o in other_data]
-            all_test = [test_data] + [o[2] for o in other_data]
+                train, val = train_data
+                all_train = [train]
+                all_val = [val]
+                all_test = [test_data]
 
             device_data[index] = DeviceData(dataset_name, all_train, all_val, all_test)
 
@@ -159,7 +200,8 @@ def run_simulation(
 
     # schedule the main function
     for node in simulator.environment.nodes.values():
-        moving = node.id == 0
+        moving = node.id in moving_node_ids_set
+        home_area = node_home_area.get(node.id, 0)
         simulator.schedule_event(
             random.random() / 100,
             aggregate_program_runner,
@@ -184,18 +226,14 @@ def run_simulation(
             alpha=alpha,
             min_current_alpha=min_current_alpha,
             max_current_alpha=max_current_alpha,
+            home_area=home_area,
         )
-        # simulator.schedule_event(
-        #     random.random() / 100,
-        #     aggregate_program_runner,
-        #     simulator,
-        #     1.0,
-        #     node,
-        #     device_simple,
-        # )
 
-    moving_node = list(simulator.environment.nodes.values())[0]
-    simulator.schedule_event(0.1, move_node, simulator, CHANGE_AREA_EACH, moving_node, 0)
+    for moving_id in moving_node_ids:
+        moving_node = simulator.environment.nodes[moving_id]
+        home_area = node_home_area[moving_id]
+        node_offset = (random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0))
+        simulator.schedule_event(0.1, move_node, simulator, CHANGE_AREA_EACH, moving_node, home_area, 0, node_offset)
 
     # render
     CustomRenderMonitor(
@@ -219,7 +257,7 @@ def run_simulation(
     )
 
     #simulator.schedule_event(1.0, csv_exporter, simulator, 1.0, config)
-    simulator.schedule_event(1.0, subareas_evaluation_csv_exporter, simulator, 1.0, config, number_of_regions, 0)
+    simulator.schedule_event(1.0, subareas_evaluation_csv_exporter, simulator, 1.0, config, number_of_regions, moving_node_ids)
     #simulator.add_monitor(TestSetEvalMonitor(simulator, learning_device, dataset_name))
 
     # Run simulation
@@ -230,7 +268,7 @@ def run_simulation(
 if __name__ == '__main__':
 
     seed_start = 42
-    seed_end = 50
+    seed_end = 43
     seeds = list(range(seed_start, seed_end))
     dataset_names = ['EMNIST']
     partitioning_methods = ['Hard']
@@ -247,36 +285,36 @@ if __name__ == '__main__':
             'min_area_weight': 0.1,
             'max_area_weight': 0.3,
         },
-        # 'C2FL_distillation': {
-        #     'training_strategy': 'distillation',
-        #     'enable_replay': True,
-        #     'distill_on_area_entry': False,
-        #     'alpha': 0.4,
-        #     'min_current_alpha': 0.05,
-        #     'max_current_alpha': 0.6,
-        # },
-        # 'FL_merge': {
-        #     'training_strategy': 'normal',
-        #     'enable_replay': False,
-        #     'area_weight': 0.4,
-        #     'distill_on_area_entry': False,  ## TODO check this
-        # },
-        # 'FL_distillation': {
-        #     'training_strategy': 'distillation',
-        #     'enable_replay': False,
-        #     'alpha': 0.3,
-        #     'distill_on_area_entry': False,  ## TODO check this
-        # },
-        # 'CL': {
-        #     'training_strategy': 'no_merge',
-        #     'enable_replay': True,
-        #     'distill_on_area_entry': False,  ## TODO check this
-        # },
-        # 'Local': {
-        #     'training_strategy': 'no_merge',
-        #     'enable_replay': False,
-        #     'distill_on_area_entry': False,  ## TODO check this
-        # }
+        'C2FL_distillation': {
+            'training_strategy': 'distillation',
+            'enable_replay': True,
+            'distill_on_area_entry': False,
+            'alpha': 0.4,
+            'min_current_alpha': 0.05,
+            'max_current_alpha': 0.6,
+        },
+        'FL_merge': {
+            'training_strategy': 'normal',
+            'enable_replay': False,
+            'area_weight': 0.4,
+            'distill_on_area_entry': False,  ## TODO check this
+        },
+        'FL_distillation': {
+            'training_strategy': 'distillation',
+            'enable_replay': False,
+            'alpha': 0.3,
+            'distill_on_area_entry': False,  ## TODO check this
+        },
+        'CL': {
+            'training_strategy': 'no_merge',
+            'enable_replay': True,
+            'distill_on_area_entry': False,  ## TODO check this
+        },
+        'Local': {
+            'training_strategy': 'no_merge',
+            'enable_replay': False,
+            'distill_on_area_entry': False,  ## TODO check this
+        }
     }
 
     # training_strategies = ['normal', 'distillation', 'no_merge']

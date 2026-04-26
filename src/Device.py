@@ -14,7 +14,7 @@ from phyelds.calculus import aggregate, neighbors, remember
 from phyelds.libraries.distances import neighbors_distances
 from src.learning import local_training, local_distillation, model_evaluation, average_weights, initialize_model
 
-impulsesEvery = 4
+impulsesEvery = 3
 distillationEpochs = 1
 distillationAlpha = 0.5
 distillationTemperature = 2.0
@@ -50,6 +50,7 @@ def device(
     alpha=0.5,
     min_current_alpha=0.1,
     max_current_alpha=0.9,
+    home_area=0,
 ):
 
     ### Getting data
@@ -69,14 +70,16 @@ def device(
     
     local_model = load_from_weights(local_model_weights, dataset_name)
 
-    current_area = (tick // CHANGE_AREA_EACH) if moving else 0
+    current_area = (home_area + tick // CHANGE_AREA_EACH) % number_of_subareas if moving else 0
     #if local_id() == 0:
     #    print(f"Node {local_id()} - Tick {tick} - Current area: {current_area} - {(tick // CHANGE_AREA_EACH)}")
     area_changed = moving and tick > 0 and current_area != previous_area
     sampled = int(len(all_train_data[current_area]) * local_sample_percentage)
     if moving and enable_replay:
-        # Add replay data from previous areas
-        train_data = ConcatDataset([Subset(ds, range(int(len(ds) * local_sample_percentage))) for ds in all_train_data[:current_area+1]])
+        # Add replay data from areas actually visited (in visit order, not by area ID)
+        steps_in_simulation = tick // CHANGE_AREA_EACH
+        visited_areas = [(home_area + i) % number_of_subareas for i in range(steps_in_simulation + 1)]
+        train_data = ConcatDataset([Subset(all_train_data[area], range(int(len(all_train_data[area]) * local_sample_percentage))) for area in visited_areas])
         # Take the current area data for distillation
     else:
         train_data = Subset(all_train_data[current_area], range(sampled))
@@ -89,7 +92,9 @@ def device(
     distances = neighbors_distances()
     (am_i_leader, leader_id) = elect_leaders(20, distances)
     potential = distance_to(am_i_leader, distances)
-    models = collect_with(potential, [trained_model], lambda x, y: x + y)
+    models = collect_with(potential, {local_id(): trained_model}, lambda x, y: {**x, **y})
+    models = [model for model in models.values() if model is not None]
+    
     aggregated_model = average_weights(models, [1.0 for _ in models])
     area_model = broadcast(am_i_leader, aggregated_model, distances)
 
