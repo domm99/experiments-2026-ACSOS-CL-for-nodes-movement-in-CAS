@@ -1,10 +1,12 @@
 import os
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
+import argparse
 import torch
 import random
 import time
 import numpy as np
+import multiprocessing
 from typing import Literal
 from src.Device import device, device_simple
 from dataclasses import dataclass
@@ -123,7 +125,7 @@ def run_simulation(
 
     all_data = {}
 
-    for area_id in range(number_of_subareas):
+    for area_id in range(number_of_regions):
         train_mapping_device_data = train_environment.from_subregion_to_devices(
             area_id,
             nodes_per_subarea + 1,
@@ -173,13 +175,13 @@ def run_simulation(
             test_data = test_data_mapping[index % nodes_per_subarea]
 
             if index in moving_node_ids_set:
-                all_train = [None] * number_of_subareas
-                all_val = [None] * number_of_subareas
-                all_test = [None] * number_of_subareas
+                all_train = [None] * number_of_regions
+                all_val = [None] * number_of_regions
+                all_test = [None] * number_of_regions
                 all_train[area_id] = train_data[0]
                 all_val[area_id] = train_data[1]
                 all_test[area_id] = test_data
-                for other_area_id in range(number_of_subareas):
+                for other_area_id in range(number_of_regions):
                     if other_area_id == area_id:
                         continue
                     other_mapping_train, other_mapping_test = all_data[other_area_id]
@@ -266,81 +268,41 @@ def run_simulation(
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Run simulation experiment')
+    parser.add_argument('--experiment_name', type=str, required=True)
+    parser.add_argument('--dataset_name', type=str, required=True)
+    parser.add_argument('--partitioning_method', type=str, required=True)
+    parser.add_argument('--number_of_regions', type=int, required=True)
+    parser.add_argument('--preferred_learning_device', type=str, default='cpu')
+    parser.add_argument('--training_strategy', type=str, default='distillation', choices=['normal', 'distillation', 'no_merge'])
+    parser.add_argument('--distill_on_area_entry', type=lambda x: x.lower() == 'true', default=True)
+    parser.add_argument('--enable_replay', type=lambda x: x.lower() == 'true', default=True)
+    parser.add_argument('--adaptable_area_weight', type=lambda x: x.lower() == 'true', default=True)
+    parser.add_argument('--area_weight', type=float, default=0.9)
+    parser.add_argument('--min_area_weight', type=float, default=0.1)
+    parser.add_argument('--max_area_weight', type=float, default=0.9)
+    parser.add_argument('--alpha', type=float, default=0.5)
+    parser.add_argument('--min_current_alpha', type=float, default=0.1)
+    parser.add_argument('--max_current_alpha', type=float, default=0.9)
+    parser.add_argument('--seed', type=int, default=42)
 
-    seed_start = 42
-    seed_end = 43
-    seeds = list(range(seed_start, seed_end))
-    dataset_names = ['EMNIST']
-    partitioning_methods = ['Hard']
-    number_of_subareas = 4
-    preferred_learning_device = "cpu"
+    args = parser.parse_args()
 
-    experiments = {
-        'C2FL_merge': {
-            'training_strategy': 'normal',
-            'enable_replay': True,
-            'distill_on_area_entry': False,
-            'adaptable_area_weight': True,
-            'area_weight': 0.4,
-            'min_area_weight': 0.1,
-            'max_area_weight': 0.3,
-        },
-        'C2FL_distillation': {
-            'training_strategy': 'distillation',
-            'enable_replay': True,
-            'distill_on_area_entry': False,
-            'alpha': 0.4,
-            'min_current_alpha': 0.05,
-            'max_current_alpha': 0.6,
-        },
-        'FL_merge': {
-            'training_strategy': 'normal',
-            'enable_replay': False,
-            'area_weight': 0.4,
-            'distill_on_area_entry': False,  ## TODO check this
-        },
-        'FL_distillation': {
-            'training_strategy': 'distillation',
-            'enable_replay': False,
-            'alpha': 0.3,
-            'distill_on_area_entry': False,  ## TODO check this
-        },
-        'CL': {
-            'training_strategy': 'no_merge',
-            'enable_replay': True,
-            'distill_on_area_entry': False,  ## TODO check this
-        },
-        'Local': {
-            'training_strategy': 'no_merge',
-            'enable_replay': False,
-            'distill_on_area_entry': False,  ## TODO check this
-        }
-    }
-
-    # training_strategies = ['normal', 'distillation', 'no_merge']
-    # distill_on_area_entry = False
-    # enable_replay = True
-
-    for seed in seeds:
-        for experiment_name, parameters in experiments.items():
-            for dataset_name in dataset_names:
-                for partitioning_method in partitioning_methods:
-                    print(f'------------------------ Running experiment {experiment_name} ------------------------')
-                    run_simulation(
-                        experiment_name,
-                        dataset_name,
-                        partitioning_method,
-                        number_of_subareas,
-                        preferred_learning_device,
-                        parameters['training_strategy'],
-                        parameters['distill_on_area_entry'],
-                        parameters['enable_replay'],
-                        parameters.get('adaptable_area_weight', True),
-                        parameters.get('area_weight', 0.9),
-                        parameters.get('min_area_weight', 0.1),
-                        parameters.get('max_area_weight', 0.9),
-                        parameters.get('alpha', 0.5),
-                        parameters.get('min_current_alpha', 0.1),
-                        parameters.get('max_current_alpha', 0.9),
-                        seed,
-                    )
+    run_simulation(
+        args.experiment_name,
+        args.dataset_name,
+        args.partitioning_method,
+        args.number_of_regions,
+        args.preferred_learning_device,
+        args.training_strategy,
+        args.distill_on_area_entry,
+        args.enable_replay,
+        args.adaptable_area_weight,
+        args.area_weight,
+        args.min_area_weight,
+        args.max_area_weight,
+        args.alpha,
+        args.min_current_alpha,
+        args.max_current_alpha,
+        args.seed,
+    )
