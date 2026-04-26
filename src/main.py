@@ -229,7 +229,9 @@ def run_simulation(
 
 if __name__ == '__main__':
 
-    seeds = [42]
+    seed_start = 42
+    seed_end = 50
+    seeds = list(range(seed_start, seed_end))
     dataset_names = ['EMNIST']
     partitioning_methods = ['Hard']
     number_of_subareas = 4
@@ -243,38 +245,38 @@ if __name__ == '__main__':
             'adaptable_area_weight': True,
             'area_weight': 0.4,
             'min_area_weight': 0.1,
-            'max_area_weight': 0.4,
+            'max_area_weight': 0.3,
         },
-        'C2FL_distillation': {
-            'training_strategy': 'distillation',
-            'enable_replay': True,
-            'distill_on_area_entry': False,
-            'alpha': 0.4,
-            'min_current_alpha': 0.05,
-            'max_current_alpha': 0.6,
-        },
-        'FL_merge': {
-            'training_strategy': 'normal',
-            'enable_replay': False,
-            'area_weight': 0.4,
-            'distill_on_area_entry': False,  ## TODO check this
-        },
-        'FL_distillation': {
-            'training_strategy': 'distillation',
-            'enable_replay': False,
-            'alpha': 0.3,
-            'distill_on_area_entry': False,  ## TODO check this
-        },
-        'CL': {
-            'training_strategy': 'no_merge',
-            'enable_replay': True,
-            'distill_on_area_entry': False,  ## TODO check this
-        },
-        'Local': {
-            'training_strategy': 'no_merge',
-            'enable_replay': False,
-            'distill_on_area_entry': False,  ## TODO check this
-        }
+        # 'C2FL_distillation': {
+        #     'training_strategy': 'distillation',
+        #     'enable_replay': True,
+        #     'distill_on_area_entry': False,
+        #     'alpha': 0.4,
+        #     'min_current_alpha': 0.05,
+        #     'max_current_alpha': 0.6,
+        # },
+        # 'FL_merge': {
+        #     'training_strategy': 'normal',
+        #     'enable_replay': False,
+        #     'area_weight': 0.4,
+        #     'distill_on_area_entry': False,  ## TODO check this
+        # },
+        # 'FL_distillation': {
+        #     'training_strategy': 'distillation',
+        #     'enable_replay': False,
+        #     'alpha': 0.3,
+        #     'distill_on_area_entry': False,  ## TODO check this
+        # },
+        # 'CL': {
+        #     'training_strategy': 'no_merge',
+        #     'enable_replay': True,
+        #     'distill_on_area_entry': False,  ## TODO check this
+        # },
+        # 'Local': {
+        #     'training_strategy': 'no_merge',
+        #     'enable_replay': False,
+        #     'distill_on_area_entry': False,  ## TODO check this
+        # }
     }
 
     # training_strategies = ['normal', 'distillation', 'no_merge']

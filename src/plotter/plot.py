@@ -5,10 +5,19 @@ import glob
 import os
 import re
 
+OUTPUT_DIR = "generated"
+SEED_PLOTS_DIR = os.path.join(OUTPUT_DIR, "seed-plots")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(SEED_PLOTS_DIR, exist_ok=True)
+
 csv_files = glob.glob("data/*.csv")
 
-def get_exp_name(file):
-    return file.split('42_')[-1].split('.')[0]
+def parse_filename(file):
+    basename = os.path.basename(file).replace('.csv', '')
+    match = re.match(r'experiment_seed-(\d+)_(.+)', basename)
+    if match:
+        return int(match.group(1)), match.group(2)
+    return None, None
 
 all_dfs = []
 
@@ -17,15 +26,18 @@ for file in csv_files:
     print(f"Processing individual file: {file}")
 
     df = pd.read_csv(file)
+    seed, exp_name = parse_filename(file)
+    if exp_name is None:
+        continue
 
     df_long = df.reset_index().melt(
         id_vars="index",
         var_name="metric",
         value_name="value"
     )
-    
-    exp_name = get_exp_name(file)
+
     df_long['experiment'] = exp_name
+    df_long['seed'] = seed
     all_dfs.append(df_long)
 
     plt.figure(figsize=(10,6))
@@ -33,36 +45,23 @@ for file in csv_files:
 
     plt.xlabel("Global Round")
     plt.ylabel("Accuracy")
-    plt.title(exp_name)
-    plt.savefig(f'accuracy_{file.split("/")[-1].split(".")[0]}.pdf')
+    plt.title(f"{exp_name} (seed={seed})")
+    plt.savefig(os.path.join(SEED_PLOTS_DIR, f'accuracy_{exp_name}_seed-{seed}.pdf'))
     plt.close()
 
 combined_df = pd.concat(all_dfs)
 
 
-# 2. All experiments combined
-print("Generating combined plot...")
-plt.figure(figsize=(14,8))
-sns.lineplot(data=combined_df, x="index", y="value", hue="metric", style="experiment")
-plt.xlabel("Global Round")
-plt.ylabel("Accuracy")
-plt.title("All Experiments Combined")
-plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-plt.tight_layout()
-plt.savefig('accuracy_combined_all.pdf')
-plt.close()
-
-# 2.1 All experiments combined - Average Accuracy
+# 2. All experiments combined - Average
 print("Generating combined average plot...")
-avg_df = combined_df.groupby(['index', 'experiment'])['value'].sum().reset_index()
 plt.figure(figsize=(14,8))
-sns.lineplot(data=avg_df, x="index", y="value", hue="experiment")
+sns.lineplot(data=combined_df, x="index", y="value", hue="experiment", errorbar=None)
 plt.xlabel("Global Round")
 plt.ylabel("Average Accuracy")
 plt.title("All Experiments Combined - Average Accuracy")
 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.savefig('accuracy_combined_all_average.pdf')
+plt.savefig(os.path.join(OUTPUT_DIR, 'accuracy_combined_all_average.pdf'))
 plt.close()
 
 # 3. Only pairs of interest
@@ -80,12 +79,11 @@ for p1, p2 in pairs:
     if len(pair_df['experiment'].unique()) == 2:
         print(f"Generating pair plot: {p1} vs {p2}")
         plt.figure(figsize=(12,8))
-        sns.lineplot(data=pair_df, x="index", y="value", hue="metric", style="experiment")
+        sns.lineplot(data=pair_df, x="index", y="value", hue="experiment", errorbar=None)
         plt.xlabel("Global Round")
         plt.ylabel("Accuracy")
         plt.title(f"Comparison: {p1} vs {p2}")
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.tight_layout()
-        plt.savefig(f'accuracy_pair_{p1}_vs_{p2}.pdf')
+        plt.savefig(os.path.join(OUTPUT_DIR, f'accuracy_pair_{p1}_vs_{p2}.pdf'))
         plt.close()
-
