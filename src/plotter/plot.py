@@ -54,7 +54,7 @@ plt.close()
 
 # 2.1 All experiments combined - Average Accuracy
 print("Generating combined average plot...")
-avg_df = combined_df.groupby(['index', 'experiment'])['value'].mean().reset_index()
+avg_df = combined_df.groupby(['index', 'experiment'])['value'].sum().reset_index()
 plt.figure(figsize=(14,8))
 sns.lineplot(data=avg_df, x="index", y="value", hue="experiment")
 plt.xlabel("Global Round")

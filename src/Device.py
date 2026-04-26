@@ -14,11 +14,11 @@ from phyelds.calculus import aggregate, neighbors, remember
 from phyelds.libraries.distances import neighbors_distances
 from src.learning import local_training, local_distillation, model_evaluation, average_weights, initialize_model
 
-impulsesEvery = 5
+impulsesEvery = 4
 distillationEpochs = 1
 distillationAlpha = 0.5
-distillationTemperature = 4.0
-local_sample_percentage = 0.1
+distillationTemperature = 2.0
+local_sample_percentage = 0.05
 
 @aggregate
 def device_simple():
@@ -41,8 +41,15 @@ def device(
     partitioning,
     moving=False,
     training_strategy='normal',
-    distill_on_area_entry=True,
+    distill_on_area_entry=False,
     enable_replay=True,
+    adaptable_area_weight=False,
+    area_weight=0.9,
+    min_area_weight=0.1,
+    max_area_weight=0.9,
+    alpha=0.5,
+    min_current_alpha=0.1,
+    max_current_alpha=0.9,
 ):
 
     ### Getting data
@@ -86,9 +93,19 @@ def device(
     aggregated_model = average_weights(models, [1.0 for _ in models])
     area_model = broadcast(am_i_leader, aggregated_model, distances)
 
+    if moving and adaptable_area_weight:
+        time_in_area = tick % CHANGE_AREA_EACH
+        area_weight = time_in_area / CHANGE_AREA_EACH
+        area_weight = max(min_area_weight, min(max_area_weight, area_weight))
+
     should_merge = (tick % impulsesEvery == 0) or (distill_on_area_entry and area_changed)
     if should_merge:
         if training_strategy == "distillation":
+            if moving:
+                current_alpha = min_current_alpha + (max_current_alpha - min_current_alpha) * (tick % CHANGE_AREA_EACH) / CHANGE_AREA_EACH
+            else:
+                current_alpha = alpha
+            
             # Distillation
             trained_model, _ = local_distillation(
                 trained_model,
@@ -97,13 +114,22 @@ def device(
                 32,
                 learning_device,
                 dataset_name,
-                epochs=distillationEpochs,
-                alpha=distillationAlpha,
+                epochs=5,
+                alpha=current_alpha,
                 temperature=distillationTemperature,
             )
+            trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 1, train_data, 16, learning_device)
+        
         elif training_strategy == "normal":
-            trained_model = average_weights([trained_model, area_model], [0.1, 0.9])
-            trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 2, train_data, 32, learning_device)
+            if moving and adaptable_area_weight:
+                time_in_area = tick % CHANGE_AREA_EACH
+                current_area_weight = time_in_area / CHANGE_AREA_EACH
+                current_area_weight = max(min_area_weight, min(max_area_weight, current_area_weight))
+            else:
+                current_area_weight = area_weight
+            local_weight = 1.0 - area_weight
+            trained_model = average_weights([trained_model, area_model], [local_weight, current_area_weight])
+            trained_model, _ = local_training(load_from_weights(trained_model, dataset_name), 1, train_data, 16, learning_device)
         elif training_strategy == "no_merge":
             pass
         else:

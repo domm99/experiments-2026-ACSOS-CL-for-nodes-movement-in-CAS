@@ -64,6 +64,13 @@ def run_simulation(
     training_strategy: Literal["normal", "distillation", "no_merge"] = 'distillation',
     distill_on_area_entry: bool = True,
     enable_replay: bool = True,
+    adaptable_area_weight: bool = True,
+    area_weight: float = 0.9,
+    min_area_weight: float = 0.1,
+    max_area_weight: float = 0.9,
+    alpha: float = 0.5,
+    min_current_alpha: float = 0.1,
+    max_current_alpha: float = 0.9,
     seed: int = 42,
 ) -> None:
     seed_everything(seed)
@@ -170,6 +177,13 @@ def run_simulation(
             training_strategy=training_strategy,
             distill_on_area_entry=distill_on_area_entry,
             enable_replay=enable_replay,
+            adaptable_area_weight=adaptable_area_weight,
+            area_weight=area_weight,
+            min_area_weight=min_area_weight,
+            max_area_weight=max_area_weight,
+            alpha=alpha,
+            min_current_alpha=min_current_alpha,
+            max_current_alpha=max_current_alpha,
         )
         # simulator.schedule_event(
         #     random.random() / 100,
@@ -222,36 +236,45 @@ if __name__ == '__main__':
     preferred_learning_device = "cpu"
 
     experiments = {
-        # 'C2FL_merge': {
-        #     'training_strategy': 'normal',
-        #     'enable_replay': True,
-        #     'distill_on_area_entry': False, ## TODO check this
-        # },
-        # 'C2FL_distillation': {
-        #     'training_strategy': 'distillation',
-        #     'enable_replay': True,
-        #     'distill_on_area_entry': False,  ## TODO check this
-        # },
-        # 'FL_merge': {
-        #     'training_strategy': 'normal',
-        #     'enable_replay': False,
-        #     'distill_on_area_entry': False,  ## TODO check this
-        # },
+        'C2FL_merge': {
+            'training_strategy': 'normal',
+            'enable_replay': True,
+            'distill_on_area_entry': False,
+            'adaptable_area_weight': True,
+            'area_weight': 0.4,
+            'min_area_weight': 0.1,
+            'max_area_weight': 0.4,
+        },
+        'C2FL_distillation': {
+            'training_strategy': 'distillation',
+            'enable_replay': True,
+            'distill_on_area_entry': False,
+            'alpha': 0.4,
+            'min_current_alpha': 0.05,
+            'max_current_alpha': 0.6,
+        },
+        'FL_merge': {
+            'training_strategy': 'normal',
+            'enable_replay': False,
+            'area_weight': 0.4,
+            'distill_on_area_entry': False,  ## TODO check this
+        },
         'FL_distillation': {
             'training_strategy': 'distillation',
             'enable_replay': False,
+            'alpha': 0.3,
             'distill_on_area_entry': False,  ## TODO check this
         },
-        # 'CL': {
-        #     'training_strategy': 'no_merge',
-        #     'enable_replay': True,
-        #     'distill_on_area_entry': False,  ## TODO check this
-        # },
-        # 'Local': {
-        #     'training_strategy': 'no_merge',
-        #     'enable_replay': False,
-        #     'distill_on_area_entry': False,  ## TODO check this
-        # }
+        'CL': {
+            'training_strategy': 'no_merge',
+            'enable_replay': True,
+            'distill_on_area_entry': False,  ## TODO check this
+        },
+        'Local': {
+            'training_strategy': 'no_merge',
+            'enable_replay': False,
+            'distill_on_area_entry': False,  ## TODO check this
+        }
     }
 
     # training_strategies = ['normal', 'distillation', 'no_merge']
@@ -272,5 +295,12 @@ if __name__ == '__main__':
                         parameters['training_strategy'],
                         parameters['distill_on_area_entry'],
                         parameters['enable_replay'],
+                        parameters.get('adaptable_area_weight', True),
+                        parameters.get('area_weight', 0.9),
+                        parameters.get('min_area_weight', 0.1),
+                        parameters.get('max_area_weight', 0.9),
+                        parameters.get('alpha', 0.5),
+                        parameters.get('min_current_alpha', 0.1),
+                        parameters.get('max_current_alpha', 0.9),
                         seed,
                     )
