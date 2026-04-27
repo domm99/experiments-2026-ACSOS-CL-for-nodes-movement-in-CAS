@@ -5,7 +5,7 @@ import time
 import sys
 
 def get_experiment_configs():
-    seed_start = 42
+    seed_start = 48
     seed_end = 49
     seeds = list(range(seed_start, seed_end))
     dataset_names = ['EMNIST']
