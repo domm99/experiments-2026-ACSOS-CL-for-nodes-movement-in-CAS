@@ -98,11 +98,6 @@ def device(
     aggregated_model = average_weights(models, [1.0 for _ in models])
     area_model = broadcast(am_i_leader, aggregated_model, distances)
 
-    if moving and adaptable_area_weight:
-        time_in_area = tick % CHANGE_AREA_EACH
-        area_weight = time_in_area / CHANGE_AREA_EACH
-        area_weight = max(min_area_weight, min(max_area_weight, area_weight))
-
     should_merge = (tick % impulsesEvery == 0) or (distill_on_area_entry and area_changed)
     if should_merge:
         if training_strategy == "distillation":

@@ -6,7 +6,7 @@ import sys
 
 def get_experiment_configs():
     seed_start = 42
-    seed_end = 43
+    seed_end = 49
     seeds = list(range(seed_start, seed_end))
     dataset_names = ['EMNIST']
     partitioning_methods = ['Hard']
@@ -23,26 +23,26 @@ def get_experiment_configs():
             'min_area_weight': 0.1,
             'max_area_weight': 0.3,
         },
-        'C2FL_distillation': {
-            'training_strategy': 'distillation',
-            'enable_replay': True,
-            'distill_on_area_entry': False,
-            'alpha': 0.4,
-            'min_current_alpha': 0.05,
-            'max_current_alpha': 0.6,
-        },
+        # 'C2FL_distillation': {
+        #     'training_strategy': 'distillation',
+        #     'enable_replay': True,
+        #     'distill_on_area_entry': False,
+        #     'alpha': 0.4,
+        #     'min_current_alpha': 0.05,
+        #     'max_current_alpha': 0.6,
+        # },
         'FL_merge': {
             'training_strategy': 'normal',
             'enable_replay': False,
             'area_weight': 0.4,
             'distill_on_area_entry': False,
         },
-        'FL_distillation': {
-            'training_strategy': 'distillation',
-            'enable_replay': False,
-            'alpha': 0.3,
-            'distill_on_area_entry': False,
-        },
+        # 'FL_distillation': {
+        #     'training_strategy': 'distillation',
+        #     'enable_replay': False,
+        #     'alpha': 0.3,
+        #     'distill_on_area_entry': False,
+        # },
         'CL': {
             'training_strategy': 'no_merge',
             'enable_replay': True,
@@ -70,9 +70,9 @@ def get_experiment_configs():
             'distill_on_area_entry': params['distill_on_area_entry'],
             'enable_replay': params['enable_replay'],
             'adaptable_area_weight': params.get('adaptable_area_weight', True),
-            'area_weight': params.get('area_weight', 0.9),
+            'area_weight': params.get('area_weight', 0.3),
             'min_area_weight': params.get('min_area_weight', 0.1),
-            'max_area_weight': params.get('max_area_weight', 0.9),
+            'max_area_weight': params.get('max_area_weight', 0.3),
             'alpha': params.get('alpha', 0.5),
             'min_current_alpha': params.get('min_current_alpha', 0.1),
             'max_current_alpha': params.get('max_current_alpha', 0.9),
