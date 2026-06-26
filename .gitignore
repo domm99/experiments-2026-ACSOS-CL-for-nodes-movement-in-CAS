@@ -22,9 +22,8 @@ gifs/
 .idea/
 
 # experiments results
-data**/
 charts**/
 policy**/
-
+dataset/
 **.mp4
 **.pdf
