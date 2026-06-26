@@ -9,7 +9,7 @@ def load_all_data(experiments: list[str], filter_by_node = None) -> dict[str, tu
     data = dict()
     for experiment in experiments:
         by_node_filter = f'{filter_by_node}' if filter_by_node is not None else '*'
-        files = glob.glob(f'data/*{experiment}*_node-{by_node_filter}.csv')
+        files = glob.glob(f'data/*_{experiment}_node-{by_node_filter}.csv')
         dfs = []
         for file in files: 
             df = pd.read_csv(file)
