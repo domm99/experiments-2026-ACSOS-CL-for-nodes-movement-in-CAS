@@ -24,7 +24,7 @@ def mean_var_dataframe(dfs: list[pd.DataFrame]) -> tuple[pd.DataFrame, pd.DataFr
     var_df = concat_df.groupby(level=0).var()
     return mean_df, var_df
 
-def plot_accuracy_single_node(df, charts_path):
+def plot_accuracy_single_node(df, charts_path, experiment):
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 10))
     axes = axes.flatten()
     df_mean, df_var = df
@@ -53,7 +53,7 @@ def plot_accuracy_single_node(df, charts_path):
     
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     
-    plt.savefig(f'{charts_path}/moving-node-fl.pdf')
+    plt.savefig(f'{charts_path}/moving-node-fl-{experiment}.pdf')
     plt.close()
 
 
@@ -94,9 +94,10 @@ def plot_total_accuracy(dict_experiments, charts_path):
 if __name__ == '__main__':
     experiments = ['C2FL_merge', 'FL_merge', 'CL', 'Local']
     all_data = load_all_data(experiments)
-    node_zero_data = load_all_data(['FL_merge'], filter_by_node = 0)
+    node_zero_data = load_all_data(['FL_merge', 'C2FL_merge'], filter_by_node = 0)
     charts_path = 'charts'
     Path(charts_path).mkdir(exist_ok=True)
 
-    plot_accuracy_single_node(node_zero_data['FL_merge'], charts_path)
+    plot_accuracy_single_node(node_zero_data['FL_merge'], charts_path, 'FL_merge')
+    plot_accuracy_single_node(node_zero_data['C2FL_merge'], charts_path, 'C2FL_merge')
     plot_total_accuracy(all_data, charts_path)
