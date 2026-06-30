@@ -1,3 +1,20 @@
+## [2.0.0](https://github.com/domm99/experiments-2026-ACSOS-CL-for-nodes-movement-in-CAS/compare/1.0.0...2.0.0) (2026-06-30)
+
+### ⚠ BREAKING CHANGES
+
+* remove old data
+
+### Features
+
+* remove old data ([85a1be5](https://github.com/domm99/experiments-2026-ACSOS-CL-for-nodes-movement-in-CAS/commit/85a1be547f71560731d944c30676bd2e4a13a474))
+
+### General maintenance
+
+* **artifact:** fix plotters ([6aaf63d](https://github.com/domm99/experiments-2026-ACSOS-CL-for-nodes-movement-in-CAS/commit/6aaf63de8ceadbfbcc555bd6de91b84fe72e7321))
+* **artifact:** remove useless docker compose ([7eaabdc](https://github.com/domm99/experiments-2026-ACSOS-CL-for-nodes-movement-in-CAS/commit/7eaabdcf798ca5ea88895fec9c019c7d4531a02f))
+* prepare readme for artifact eval ([5e87892](https://github.com/domm99/experiments-2026-ACSOS-CL-for-nodes-movement-in-CAS/commit/5e87892084f29fdfdfc33624ec8e2146ff6a38a2))
+* **release:** update .env versions to 1.0.0 [skip ci] ([f971687](https://github.com/domm99/experiments-2026-ACSOS-CL-for-nodes-movement-in-CAS/commit/f97168798db04c89083b3ce3c356852de1a6e827))
+
 ## 1.0.0 (2026-04-29)
 
 ### Features
